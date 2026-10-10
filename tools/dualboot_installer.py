@@ -5,6 +5,7 @@ Source is V7 external SSD; Google bytes are copied locally, never distributed.
 """
 import argparse,fcntl,hashlib,json,os,pathlib,re,stat,struct,subprocess,uuid,zlib,tempfile,shutil
 from inspect_recovery import gpt
+from googlebook_boot_menu import render as render_boot_menu
 MiB=1<<20;GiB=1<<30
 ESP='c12a7328-f81f-11d2-ba4b-00a0c93ec93b';BASIC='ebd0a0a2-b9e5-4433-87c0-68b6b72699c7'
 COMPAT_HASH='77cb6ec0e399a944a020b5d7d55d03dbd1bb5a2ba01012be91d315987ab69722'
@@ -179,7 +180,7 @@ def prepare_payloads(plan,log,assets):
  require(assets.joinpath('internal-BOOTX64.EFI').is_file(),'Internal GRUB loader asset missing')
  # Separate FAT label and a separate EFI partition; Windows ESP never receives writes.
  command(log,'efi-label','mlabel','-i',fat,'-N',uuid.uuid4().hex[:8],'::GBRUNCH_INT')
- out=log/'target-grub.cfg';out.write_text("set timeout=5\nset default=0\nmenuentry 'GBRUNCH Googlebook OS (experimental HP)' {\n linux /EFI/GBRUNCH/kernel "+cmd+"\n initrd /EFI/GBRUNCH/initrd.gz\n}\nmenuentry 'UEFI firmware settings' { fwsetup }\n")
+ out=log/'target-grub.cfg';out.write_text(render_boot_menu(cmd))
  command(log,'efi-config','mcopy','-o','-i',fat,out,'::/EFI/GBRUNCH/grub.cfg')
  command(log,'efi-loader','mcopy','-o','-i',fat,assets/'internal-BOOTX64.EFI','::/EFI/BOOT/BOOTX64.EFI')
  command(log,'efi-fsck','fsck.fat','-n',fat)

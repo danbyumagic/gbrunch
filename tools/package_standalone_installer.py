@@ -7,7 +7,7 @@ for n in ['linux-kernel','initrd.gz','runtime-manifest.json','usb-manifest.json'
 with (B/'gbrunch-installer-v1.img').open('rb') as f,gzip.GzipFile(filename=str(K/'installer.img.gz'),mode='wb',mtime=0,compresslevel=6) as out:shutil.copyfileobj(f,out,1<<20)
 shutil.copytree('/tmp/gbrunch-standalone-assets',K/'assets',dirs_exist_ok=True)
 for n in ['prepare_standalone_usb_macos.py']:copy(R/'tools'/n,K/n)
-for n in ['assemble_native_android.py','assemble_external_lab.py','inspect_recovery.py','dualboot_installer.py','installer_console.py','installer_init.sh','standalone_bootstrap.py','prepare_standalone_guest.py','build_installer_usb.py','build_standalone_assets.py','package_standalone_installer.py','prepare_native_android_gpu.py','test_standalone_usb.py','test_standalone_install.py','test_standalone_install_guest.py','test_standalone_usb_boot.py']:copy(R/'tools'/n,K/'source'/n)
+for n in ['googlebook_boot_menu.py','assemble_native_android.py','assemble_external_lab.py','inspect_recovery.py','dualboot_installer.py','installer_console.py','installer_init.sh','standalone_bootstrap.py','prepare_standalone_guest.py','build_installer_usb.py','build_standalone_assets.py','package_standalone_installer.py','prepare_native_android_gpu.py','test_standalone_usb.py','test_standalone_install.py','test_standalone_install_guest.py','test_standalone_usb_boot.py']:copy(R/'tools'/n,K/'source'/n)
 # Exact V7 scripts/notices and corresponding compatibility build provenance.
 shutil.copytree(R/'build/gbrunch-compat-v7-kit/source',K/'source/v7',dirs_exist_ok=True)
 shutil.copytree(R/'build/gbrunch-installer-v1-kit/licenses',K/'licenses',dirs_exist_ok=True)

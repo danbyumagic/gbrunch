@@ -16,7 +16,7 @@ Googlebook OS is proprietary. **This repository contains no Google recovery imag
 | Same-drive Googlebook trial | Production copy/readback and GPT rollback tested in QEMU; cold UEFI handoff reached the original Google kernel; complete Android boot in this new layout not physically confirmed |
 | Internal dual boot | Production installer tested against dummy Windows/system contents in QEMU; preserves existing partition bytes and boot priority; physical internal Android boot not confirmed |
 | Automatic Google updates | Not implemented or validated |
-| Other laptops | Untested; current Android boot path includes an HP/QEMU hardware gate |
+| Other laptops | Untested; default entry is HP/QEMU-gated, with an explicit experimental entry in new source builds |
 | Audio, Bluetooth, camera, sensors, sleep, media acceleration | Some Linux diagnostic evidence exists; full Android functionality is not established |
 
 The toolbox storage setup source now accepts **a dedicated USB drive or USB SSD of 64 GB or larger**, including a 240 GB SSD. The previously built v0.2 ISO has an upper-size check that must be patched for larger drives; see [the quick-start guide](docs/QUICKSTART.md). Capacity alone does not establish hardware support.
@@ -58,7 +58,7 @@ The workflow is:
 1. Write the Linux toolbox ISO in raw/DD mode and boot it in UEFI mode.
 2. Set up its persistent storage and reboot into Linux.
 3. Connect to the internet and select **Prepare official recovery**.
-4. Select **Prepare USB Googlebook trial**, review the disk identity and confirmation token, then reboot into **Try Googlebook OS**.
+4. Select **Prepare USB Googlebook trial**, review the disk identity and confirmation token, then reboot into **Try Googlebook OS**. In the Android menu, use the tested HP/QEMU entry or explicitly select **Experimental boot - untested hardware (verbose logs)** for another laptop.
 5. Return to Linux to collect logs if it fails. Internal installation is an optional later step after a successful external trial.
 
 The trial creates fresh **16 GiB Android userdata** alongside a **24 GiB Linux workspace**. It does not automatically use the rest of a larger SSD for Android data. Repeated trial overwrite and a compatibility rollback interface are not implemented.
@@ -95,6 +95,8 @@ The research scripts retain development-environment paths and staged dependencie
 ## Collaboration and debugging
 
 We want to support more Intel laptops, but need hardware evidence. See [CONTRIBUTING.md](CONTRIBUTING.md). Start with an external trial; collect exact PCI/USB/subsystem IDs, boot stage, build version, kernel/logcat and graphics/radio failures. Reaching the logo alone does not identify a graphics problem.
+
+The existing downloadable v0.2 ISO and already-built disks predate the new experimental menu. New source builds include it; existing disks can update only their owned EFI configuration using [the menu-upgrade guide](docs/EXPERIMENTAL-BOOT.md).
 
 The Linux toolbox provides a terminal and browser for your preferred debugging tools or AI service. No account, API key or AI credential is bundled. Review logs before sharing them; hardware IDs, network information and account details can appear in diagnostic output. **Do not submit full recovery images or Android userdata.**
 

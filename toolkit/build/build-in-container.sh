@@ -42,7 +42,7 @@ fi
 cp -a /src/toolkit/live/root/. "$ROOT/"
 mkdir -p "$ROOT/opt/gbrunch/assets" "$ROOT/opt/gbrunch/source"
 cp -a /assets/. "$ROOT/opt/gbrunch/assets/"
-cp /src/tools/{assemble_native_android.py,assemble_external_lab.py,inspect_recovery.py,dualboot_installer.py,installer_console.py,toolbox_source.py,toolbox_install.py} "$ROOT/opt/gbrunch/source/"
+cp /src/tools/{assemble_native_android.py,assemble_external_lab.py,inspect_recovery.py,dualboot_installer.py,installer_console.py,toolbox_source.py,toolbox_install.py,googlebook_boot_menu.py} "$ROOT/opt/gbrunch/source/"
 cp /src/INSTALLER-LICENSE.txt "$ROOT/opt/gbrunch/"
 cp /src/STANDALONE-INSTALLER.md "$ROOT/opt/gbrunch/"
 cp /runtime/internal-BOOTX64.EFI "$ROOT/opt/gbrunch/source/"

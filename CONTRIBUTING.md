@@ -10,7 +10,7 @@ Collect Android logs with the toolbox's Collect Android boot logs button. Builde
 
 ## Changes
 
-Explain the failure addressed, exact hardware/build and validation performed. Distinguish physical results from QEMU fixtures. Keep original recovery read-only, preserve local originals and avoid system-wide security bypasses. Hardware profiles should be explicit; do not simply remove the HP boot gate and label all Intel devices supported.
+Explain the failure addressed, exact hardware/build and validation performed. Distinguish physical results from QEMU fixtures. Keep original recovery read-only, preserve local originals and avoid system-wide security bypasses. Hardware profiles should be explicit. The untested-hardware menu enables experiments but does not establish support.
 
 Changes to partition writers need meaningful tests for bounds, identity revalidation, preservation, readback, cancellation and caught-write rollback. Existing test scripts use Work-specific paths; portable CI is a contribution opportunity. Routine documentation fixes do not need new tests.
 

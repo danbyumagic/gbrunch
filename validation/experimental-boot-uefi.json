@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "kernel_sha256": "7816c5d5b3500093e597b7362ecab103d5a32141b100d3eb7a8b33221fce7f41",
+  "cases": [
+    {
+      "case": "dell-default-refused",
+      "passed": true,
+      "original_kernel_handoff": false
+    },
+    {
+      "case": "dell-experimental-handoff",
+      "passed": true,
+      "original_kernel_handoff": true
+    },
+    {
+      "case": "hp-default-handoff",
+      "passed": true,
+      "original_kernel_handoff": true
+    },
+    {
+      "case": "qemu-default-handoff",
+      "passed": true,
+      "original_kernel_handoff": true
+    }
+  ],
+  "scope": "Actual GRUB in QEMU with simulated Dell/HP SMBIOS; test fixture initramfs, original Google kernel; no physical Dell or Android desktop claim"
+}

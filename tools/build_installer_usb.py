@@ -23,7 +23,7 @@ executable(L/'usr/sbin/fsck.fat','bin/fsck.fat');executable('/usr/sbin/blkid','b
 # glibc codepage converters are required by mtools for FAT names.
 for p in pathlib.Path('/usr/lib/x86_64-linux-gnu/gconv').rglob('*'):
  if p.is_file():copy(p,'usr/lib/x86_64-linux-gnu/gconv/'+str(p.relative_to('/usr/lib/x86_64-linux-gnu/gconv')))
-for name in ['dualboot_installer.py','inspect_recovery.py','installer_console.py','test_installer_guest.py','test_installed_layout.py','standalone_bootstrap.py','prepare_standalone_guest.py']:copy(R/'tools'/name,'installer/'+name)
+for name in ['googlebook_boot_menu.py','dualboot_installer.py','inspect_recovery.py','installer_console.py','test_installer_guest.py','test_installed_layout.py','standalone_bootstrap.py','prepare_standalone_guest.py']:copy(R/'tools'/name,'installer/'+name)
 copy(B/'internal-BOOTX64.EFI','installer/internal-BOOTX64.EFI')
 # Matching Debian module closure for physical NVMe/USB, keyboard, EFI variables,
 # and ext4 work/test files. No network or GPU acceleration is needed by installer.

@@ -31,7 +31,8 @@ for i,n in enumerate(['native_vendor_in_vm.py','graphics_client_domains.json']):
 extra+=entry('payload/modules.json',(R/'build/local-tool-vm/modules.json').read_bytes(),stat.S_IFREG|0o644,1500050)
 extra+=entry('TRAILER!!!',b'',0,1500099)
 p=O/'tool-initrd.gz';p.unlink();p.write_bytes(gzip.compress(gzip.decompress((R/'build/gbrunch-compat-v7-kit/initrd.gz').read_bytes())+extra,compresslevel=6,mtime=0))
-for n in ['native_vendor_in_vm.py','graphics_client_domains.json','build_standalone_assets.py']:
+shutil.copyfile(R/'tools/googlebook_boot_menu.py',O/'googlebook_boot_menu.py')
+for n in ['native_vendor_in_vm.py','graphics_client_domains.json','build_standalone_assets.py','googlebook_boot_menu.py']:
  shutil.copyfile(R/'tools'/n,O/'rebuild-source'/n)
 (O/'standalone-runtime-provenance.json').write_text(json.dumps(dict(base_v7_initrd_sha256=hashlib.sha256((R/'build/gbrunch-compat-v7-kit/initrd.gz').read_bytes()).hexdigest(),overlays={n:hashlib.sha256((R/'tools'/n).read_bytes()).hexdigest() for n in ['native_vendor_in_vm.py','graphics_client_domains.json']},module_metadata_sha256=hashlib.sha256((R/'build/local-tool-vm/modules.json').read_bytes()).hexdigest(),scope='GNU/AOSP tools only; module metadata refers to bytes extracted locally from the official recovery'),indent=2)+'\n')
 m=json.loads((O/'native-assets.json').read_text());m['cmdline']=m['cmdline'].replace('drm.debug=0x1e','drm.debug=0');m['scope']='Open-source standalone V7 local builder; official recovery supplied locally'

@@ -5,7 +5,7 @@ R=pathlib.Path(__file__).resolve().parents[1];B=R/'build/dualboot-installer';K=R
 for f in ['INSTALLER.md','INSTALLER-LICENSE.txt']:shutil.copyfile(R/f,K/f)
 for f in ['runtime-manifest.json','usb-manifest.json']:shutil.copyfile(B/f,K/f)
 source=K/'source';source.mkdir(exist_ok=True)
-for n in ['dualboot_installer.py','installer_console.py','installer_init.sh','build_installer_usb.py','inspect_recovery.py','prepare_native_android_gpu.py','prepare_installer_fixtures.py','test_installer_guest.py','test_installer_vm.py','test_installed_layout.py','test_installer_uefi.py','test_installer_usb_boot.py','test_installer_block.py','test_installer_block_guest.py','package_installer_usb.py','build_local_tool_vm.py','build_userdata_vm.py','maintain_userdata_guest.py','native_vendor_in_vm.py','extend_vendor_policy.c']:
+for n in ['googlebook_boot_menu.py','dualboot_installer.py','installer_console.py','installer_init.sh','build_installer_usb.py','inspect_recovery.py','prepare_native_android_gpu.py','prepare_installer_fixtures.py','test_installer_guest.py','test_installer_vm.py','test_installed_layout.py','test_installer_uefi.py','test_installer_usb_boot.py','test_installer_block.py','test_installer_block_guest.py','package_installer_usb.py','build_local_tool_vm.py','build_userdata_vm.py','maintain_userdata_guest.py','native_vendor_in_vm.py','extend_vendor_policy.c']:
  shutil.copyfile(R/'tools'/n,source/n)
 shutil.copyfile(R/'sources/gbos-vm/image/erofs_metadata.py',source/'erofs_metadata.py')
 licenses=K/'licenses';licenses.mkdir(exist_ok=True)

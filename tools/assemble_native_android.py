@@ -2,10 +2,11 @@
 """Assemble a local Google recovery view using an isolated Linux build-tool VM.
 
 Only new regular output files are accepted. Proprietary recovery and generated
-vendor/ramdisk stay local. Boot eligibility is specified by validated kit assets.
+vendor/ramdisk stay local. The default entry is HP/QEMU-gated; other hardware requires explicit experimental selection.
 """
 import argparse,gzip,hashlib,json,os,pathlib,shutil,stat,struct,subprocess,tempfile,urllib.request,uuid,zipfile,zlib
 from inspect_recovery import gpt,decompress,align,u32
+from googlebook_boot_menu import render as render_boot_menu
 from assemble_external_lab import URL,ZIP_HASH,RAW_HASH,sha
 
 def run(*args,**kwargs):return subprocess.run([str(a) for a in args],check=True,**kwargs)
@@ -128,7 +129,7 @@ def main():
         fat.unlink()  # All verified outputs are read; release the local VM scratch disk.
         vb=blobs['vbmeta_a'];vs=256+int.from_bytes(vb[12:20],'big')+int.from_bytes(vb[20:28],'big')
         cmd=manifest['cmdline'].replace('BOOT_GUID',by['boot_a']['guid']).replace('VBMETA_SIZE',str(vs)).replace('VBMETA_DIGEST',hashlib.sha256(vb[:vs]).hexdigest())
-        (w/'grub.cfg').write_text((assets/'native-grub.cfg').read_text().replace('CMDLINE',cmd))
+        (w/'grub.cfg').write_text(render_boot_menu(cmd))
         esp=w/'esp.fat';shutil.copyfile(assets/'esp-template.fat',esp)
         for file,n in [(w/'kernel','kernel'),(w/'initrd.gz','initrd.gz'),(w/'grub.cfg','grub.cfg')]:run('mcopy','-o','-i',esp,file,'::/EFI/GBRUNCH/'+n)
         logfat=w/'logs.fat'

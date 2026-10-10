@@ -11,7 +11,7 @@ Debian 13 XFCE live desktop and local Googlebook builder, for a dedicated USB dr
 5. Reboot and select Try Googlebook OS from the UEFI toolbox menu. Return to the normal Linux entry to collect Android logs, inspect hardware or use the browser/terminal.
 6. Optionally select Install Googlebook on internal disk. Windows must already have one sufficiently large unallocated extent; this tool never shrinks NTFS. The reviewed INSTALL token authorizes copying into that extent with fresh 32 GiB data, a separate Googlebook ESP and Windows boot priority retained. Shut down and disconnect the USB after successful installation.
 
-Trial boot is UEFI; legacy BIOS supports the Linux toolbox. The trial's EFI loader retains the original HP/QEMU hardware gate. Keep the working external V7 SSD separate as a fallback. Repeated trial overwrite and compatibility rollback are not implemented.
+Trial boot is UEFI; legacy BIOS supports the Linux toolbox. New builds keep the HP/QEMU-gated default and add an explicit experimental entry for other hardware. The previously built v0.2 ISO predates that menu; see ../docs/EXPERIMENTAL-BOOT.md for upgrading an existing disk. Keep the working external V7 SSD separate as a fallback. Repeated trial overwrite and compatibility rollback are not implemented.
 
 The local-image source is verified and exposed through read-only NBD. Trial copying happens before GPT commit; operation logs and original partition tables are saved in GBWORK/logs. Terminal transcripts are retained too. Diagnostics are local until you share them. Review reports for identifying information. GBWORK is ext4; Finder cannot ordinarily read it. Share from Linux or copy to another FAT/exFAT drive.
 
