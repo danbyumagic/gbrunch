@@ -4,7 +4,15 @@ GBRUNCH is an experimental project to run Googlebook OS on ordinary Intel UEFI l
 
 > **Experimental: things can go wrong.** Boot failures, crashes, broken hardware support and data loss are possible. Writing the ISO erases the selected drive, and choosing the wrong disk can destroy your existing data. Back up anything important and start with a dedicated external drive before attempting internal installation.
 
-**Googlebook OS has booted to the home screen on an HP Envy x360 15-fe1xxx with a Core Ultra 7 155U.** The V6 changes substantially improved graphics, color and responsiveness; Wi-Fi worked after V7. This is the only laptop currently available for physical testing. The project is open for collaboration to expand hardware support; compatibility with other laptops remains unverified.
+## TL;DR
+
+- **GBRUNCH brings Googlebook OS to Intel laptops using a locally built compatibility layer.**
+- **Only one HP Envy x360 15-fe1xxx / Core Ultra 7 155U has been physically tested.** The desktop, graphics and Wi-Fi work; **webcam and sound do not work yet**.
+- **Toolbox v0.3** provides a Linux USB environment to download the official recovery, build locally, try Googlebook and collect logs. Use a dedicated **64 GB or larger USB drive or USB SSD**.
+- Other laptops can use the explicit experimental boot entry, but compatibility is unverified. Contributions and hardware reports are welcome.
+- **This is experimental.** Back up important data; boot failures and disk-writing mistakes can cause data loss. Internal installation has not been physically validated.
+
+Googlebook OS has reached the home screen on the tested HP. That is the only laptop currently available for physical testing. The project is open for collaboration to expand hardware support.
 
 Googlebook OS is proprietary. **This repository contains no Google recovery image, original Google kernel/module/ramdisk, derived Google vendor/policy image, account data, or raw device logs.** Download recovery directly from Google and build locally. Do not upload generated recovery-derived images here.
 
@@ -19,9 +27,10 @@ Googlebook OS is proprietary. **This repository contains no Google recovery imag
 | Internal dual boot | Production installer tested against dummy Windows/system contents in QEMU; preserves existing partition bytes and boot priority; physical internal Android boot not confirmed |
 | Automatic Google updates | Not implemented or validated |
 | Other laptops | Untested; default entry is HP/QEMU-gated, with an explicit experimental entry in new source builds |
-| Audio, Bluetooth, camera, sensors, sleep, media acceleration | Some Linux diagnostic evidence exists; full Android functionality is not established |
+| Webcam and sound | **Not working yet on the tested HP** |
+| Bluetooth, sensors, sleep, media acceleration | Full Android functionality has not been established |
 
-Toolbox **v0.3** includes setup for a dedicated USB drive or USB SSD of **64 GB or larger**, including a 240 GB SSD, plus the experimental boot entry. No manual v0.2 patches are needed. Capacity alone does not establish hardware support.
+Toolbox **v0.3** includes persistent USB storage, the local recovery builder and an explicit experimental boot entry for other laptops. It requires a dedicated USB drive or USB SSD of **64 GB or larger**.
 
 ## How it works
 
@@ -98,7 +107,7 @@ The research scripts retain development-environment paths and staged dependencie
 
 The goal is to support more Intel laptops. Reports from people testing other hardware will help establish compatibility and identify missing support. See [CONTRIBUTING.md](CONTRIBUTING.md). Start with an external trial; collect exact PCI/USB/subsystem IDs, boot stage, build version, kernel/logcat and graphics/radio failures. Reaching the logo alone does not identify a graphics problem.
 
-The new v0.3 ISO includes the experimental menu. Older v0.2 images and already-built disks predate it; existing disks can update only their owned EFI configuration using [the menu-upgrade guide](docs/EXPERIMENTAL-BOOT.md).
+Toolbox v0.3 includes the experimental boot menu. The [menu-upgrade guide](docs/EXPERIMENTAL-BOOT.md) covers updating an existing disk’s EFI configuration.
 
 The Linux toolbox provides a terminal and browser for your preferred debugging tools or AI service. No account, API key or AI credential is bundled. Review logs before sharing them; hardware IDs, network information and account details can appear in diagnostic output. **Do not submit full recovery images or Android userdata.**
 
