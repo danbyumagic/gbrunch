@@ -1,6 +1,6 @@
 # Sources and credits
 
-GBRUNCH is Daniel Jensen’s project. OpenAI **GPT-6.1 Sol** provided AI assistance with research, coding, debugging and documentation. Physical HP testing was performed by Daniel; QEMU tests are identified separately.
+GBRUNCH is a project by [danbyumagic](https://github.com/danbyumagic). OpenAI **GPT-6.1 Sol** provided AI assistance with research, coding, debugging and documentation. Physical HP testing was performed by [danbyumagic](https://github.com/danbyumagic); QEMU tests are identified separately.
 
 GBRUNCH-owned scripts are licensed under INSTALLER-LICENSE.txt. Linux, GNU tools, Debian packages, firmware and Android components keep their own licenses. Copies of licenses for the compatibility assets are under toolkit/licenses and within /opt/gbrunch/assets/licenses on the ISO. Debian package copyright/license notices are installed under /usr/share/doc/<package>/copyright.
 

@@ -115,7 +115,7 @@ Priority work includes portable test runners, broader hardware profiles without 
 
 ## Credits and licensing
 
-GBRUNCH is a project by **Daniel Jensen**, developed with AI assistance from **OpenAI GPT-6.1 Sol** for research, coding, debugging and documentation. Physical HP testing was carried out by Daniel. The validation records distinguish physical results from virtual-machine tests.
+GBRUNCH is a project by **[danbyumagic](https://github.com/danbyumagic)**, developed with AI assistance from **OpenAI GPT-6.1 Sol** for research, coding, debugging and documentation. Physical HP testing was carried out by [danbyumagic](https://github.com/danbyumagic). The validation records distinguish physical results from virtual-machine tests.
 
 The project builds on earlier work and upstream components:
 
