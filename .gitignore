@@ -27,3 +27,4 @@
 *.fat.gz
 .env
 .env.*
+!/dist/gbrunch-compatibility-assets-v7.tar.gz

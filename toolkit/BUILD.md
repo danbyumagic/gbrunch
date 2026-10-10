@@ -2,7 +2,7 @@
 
 Use a Linux Docker host with at least 12 GB RAM and 12 GB free scratch storage. The builder requires a privileged disposable container to create the live filesystem. Default scratch/output paths are under build/; override them as needed.
 
-Fetch the pinned redistributable V7 assembly assets and GNU GRUB runtimes from the preview release using Python 3.12 or newer:
+Fetch the pinned redistributable V7 assembly assets and GNU GRUB runtimes from this repository using Python 3.12 or newer:
 
 ```sh
 python3 tools/fetch_toolbox_assets.py

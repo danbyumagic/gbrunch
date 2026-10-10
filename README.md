@@ -88,7 +88,7 @@ Do not assume another HP configuration contains the same devices. See [the physi
 - [validation/](validation/): selected non-private test summaries, source commit references and toolbox screenshot.
 - [BUILD.md](BUILD.md): historical research build notes; [toolkit/BUILD.md](toolkit/BUILD.md): current Linux ISO build recipe.
 
-For the toolbox build, fetch pinned redistributable dependencies with `python3 tools/fetch_toolbox_assets.py` and follow `toolkit/BUILD.md`. Google recovery is not required to build the Linux ISO.
+For the toolbox build, the pinned 42 MB redistributable dependency archive is under `dist/`; fetch it with `python3 tools/fetch_toolbox_assets.py` and follow `toolkit/BUILD.md`. Google recovery is not required to build the Linux ISO.
 
 The research scripts retain development-environment paths and staged dependencies. They are published for review and collaboration, not presented as a universal one-command source bootstrap. The local toolbox workflow is the intended user-facing path. Debian package versions are recorded, but the ISO is not yet byte-reproducible from a frozen snapshot.
 

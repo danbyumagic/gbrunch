@@ -2,7 +2,7 @@
 """Fetch pinned redistributable assets; never fetch a Google recovery image."""
 import hashlib,json,pathlib,shutil,tarfile,tempfile,urllib.request
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-URL='https://github.com/danbyumagic/gbrunch/releases/download/v0.2-preview/gbrunch-compatibility-assets-v7.tar.gz'
+URL='https://raw.githubusercontent.com/danbyumagic/gbrunch/main/dist/gbrunch-compatibility-assets-v7.tar.gz'
 SHA256='ba6eac2e2c1482bb3b0e4f4c1aee658b1dc488cce54e5ccbb2726e01fa3376c3'
 def main():
  if (ROOT/'assets').exists():raise SystemExit('assets/ already exists; preserve it rather than overwrite.')

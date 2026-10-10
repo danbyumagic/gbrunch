@@ -10,7 +10,7 @@ The first public preview uses the previously QEMU-tested v0.2 ISO. Its SHA256 is
 72a293967259183584ffdaf9249da5019ee13951024e4d1de1c1e7e0667f5ccc
 ```
 
-Download it from [GitHub Releases](https://github.com/danbyumagic/gbrunch/releases/tag/v0.2-preview). Until that asset is available, the verified temporary mirror is:
+The ISO is currently on a verified temporary Filebin mirror. GitHub release-asset upload was rejected by the connected credential; it is not hosted as a GitHub binary asset. The compatibility dependency archive is stored in this repository under dist/. The mirror may expire; do not substitute an unverified image. Download the ISO with:
 
 ```sh
 curl -fsSL -c /tmp/gbrunch-cookies https://filebin.net/gbrunch-toolbox-v02-72a293967259 -o /dev/null
