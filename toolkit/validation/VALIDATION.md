@@ -11,3 +11,7 @@ Final ISO SHA256: 72a293967259183584ffdaf9249da5019ee13951024e4d1de1c1e7e0667f5c
 The final local builder uses relative backing paths; dummy and real private-image relocation tests verify that logical bytes remain unchanged after moving the cache. The final download is independently hashed.
 
 No physical HP trial/internal installation success is claimed. Only the earlier external V7 Googlebook desktop is physically proven. Hardware compatibility on other laptops remains unverified. Test runners currently use development-environment paths and are not yet portable CI.
+
+## v0.3 ISO update
+
+The v0.3 artifact includes the larger-USB-SSD setup fix, v0.3 persistence marker support, and the shared experimental Android menu generator in the actual installed builder/installer source. See validation/toolbox-v03-build.json and validation/toolbox-v03-download.json in the repository root for the final artifact hash and hosted-download verification. The simulated Dell/HP/QEMU GRUB tests are in validation/experimental-boot-uefi.json. This does not add a physical non-HP or internal-installation success claim.

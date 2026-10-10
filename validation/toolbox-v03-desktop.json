@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "iso_sha256": "818c5e37d9a2ba104cb700d0275055347a690bc1c9ab2a0e1e84286ba0955924",
+  "uefi_desktop_boot": true,
+  "observed": "XFCE and GBRUNCH v0.3 dashboard in QEMU",
+  "physical_android_trial_tested": false
+}

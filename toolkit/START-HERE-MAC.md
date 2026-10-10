@@ -1,13 +1,13 @@
-# GBRUNCH Toolbox v0.2 — prepare and try Googlebook locally
+# GBRUNCH Toolbox v0.3 — prepare and try Googlebook locally
 
 Use a spare **64 GB or larger USB drive/USB SSD**. Writing the ISO erases that USB. Keep the working Googlebook SSD and 32 GB installer separate. Your Mac needs about 1 GB free for this ISO; the large recovery download/build happens on the USB in Linux.
 
 ```sh
 cd ~/Downloads
-URL=https://filebin.net/gbrunch-toolbox-v02-72a293967259
+URL=https://filebin.net/gbrunch-toolbox-v03-818c5e37d9a2
 curl -fsSL -c /tmp/gbrunch-cookies "$URL" -o /dev/null
-curl -fL --retry 3 -b /tmp/gbrunch-cookies "$URL/gbrunch-toolbox-v0.2-amd64.iso" -o gbrunch-toolbox-v0.2-amd64.iso
-echo '72a293967259183584ffdaf9249da5019ee13951024e4d1de1c1e7e0667f5ccc  gbrunch-toolbox-v0.2-amd64.iso' | shasum -a 256 -c -
+curl -fL --retry 3 -b /tmp/gbrunch-cookies "$URL/gbrunch-toolbox-v0.3-amd64.iso" -o gbrunch-toolbox-v0.3-amd64.iso
+echo '818c5e37d9a2ba104cb700d0275055347a690bc1c9ab2a0e1e84286ba0955924  gbrunch-toolbox-v0.3-amd64.iso' | shasum -a 256 -c -
 diskutil list external physical
 ```
 
@@ -15,7 +15,7 @@ Identify the **64 GB USB whole disk**. Replace N with its current number, not a 
 
 ```sh
 diskutil unmountDisk /dev/diskN
-sudo dd if=./gbrunch-toolbox-v0.2-amd64.iso of=/dev/rdiskN bs=4m
+sudo dd if=./gbrunch-toolbox-v0.3-amd64.iso of=/dev/rdiskN bs=4m
 sync
 diskutil eject /dev/diskN
 ```
@@ -34,4 +34,4 @@ For optional internal dual boot: first boot Windows and use Disk Management to s
 
 QEMU verified the deployment/installer with dummy system and Windows data, original Google kernel hash checks, and interrupted-GPT rollback. It does not establish physical HP trial/internal installation success. Only the earlier external V7 Android desktop is physically proven. The trial retains the HP/QEMU hardware gate. Android data is unencrypted for this experiment; this remains a private experimental USB.
 
-For drives larger than 64 GB, the existing v0.2 ISO needs the setup size-check fix in [the quick-start guide](../docs/QUICKSTART.md). New source builds include that fix.
+This v0.3 ISO includes larger USB SSD setup and the explicit experimental Android boot entry for other laptops. No v0.2 manual patches are needed.

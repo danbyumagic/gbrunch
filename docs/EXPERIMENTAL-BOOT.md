@@ -1,6 +1,6 @@
 # Experimental boot on another laptop
 
-New source builds have two Android entries:
+The v0.3 ISO and new source builds have two Android entries:
 
 1. **Googlebook OS - tested HP Envy / QEMU**: default; retains the SMBIOS model/board gate.
 2. **Experimental boot - untested hardware (verbose logs)**: explicitly attempts the same Intel-oriented build on another UEFI laptop.
@@ -11,7 +11,7 @@ Select **Try Googlebook OS** from the Linux toolbox's top-level UEFI menu first;
 
 ## Existing disks and the previously built ISO
 
-The downloadable v0.2 ISO, its bundled assembler and previously assembled disks predate this menu change. Pulling this repository does not modify an existing disk. A newly built ISO/local image uses the shared generator in tools/googlebook_boot_menu.py. Updated installers and asset packaging include that generator; original recovery bytes and system/vendor images are unaffected by this menu change.
+The older v0.2 ISO, its bundled assembler and previously assembled disks predate this menu change. Pulling this repository does not modify an existing disk. A newly built ISO/local image uses the shared generator in tools/googlebook_boot_menu.py. Updated installers and asset packaging include that generator; original recovery bytes and system/vendor images are unaffected by this menu change.
 
 To update an existing external trial/Googlebook disk without rebuilding Android, boot Linux and identify/mount **that disk's GBRUNCH Android EFI partition**. This is the Android ESP, not the toolbox ISO EFI or Windows ESP. Use `lsblk -f` to inspect labels; trial deployments use GBTRIAL_EFI. The target file must already be `EFI/GBRUNCH/grub.cfg` and contain the known GBRUNCH kernel/init configuration.
 

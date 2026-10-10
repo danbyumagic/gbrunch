@@ -5,7 +5,8 @@ apt-get update
 apt-get install -y --no-install-recommends debootstrap xorriso squashfs-tools isolinux syslinux-common grub-efi-amd64-bin grub-pc-bin mtools dosfstools
 ROOT=/scratch/rootfs
 mkdir -p "$ROOT" /out/iso
-cached_iso=/out/gbrunch-toolbox-v0.2-amd64.iso
+cached_iso=/out/gbrunch-toolbox-v0.3-amd64.iso
+[ -f "$cached_iso" ] || cached_iso=/out/gbrunch-toolbox-v0.2-amd64.iso
 [ -f "$cached_iso" ] || cached_iso=/out/gbrunch-toolbox-v0.1-amd64.iso
 if [ ! -f "$ROOT/opt/gbrunch/packages.lock" ] && [ -f "$cached_iso" ]; then
  xorriso -osirrox on -indev "$cached_iso" -extract /live/filesystem.squashfs /out/previous-root.squashfs
@@ -76,7 +77,7 @@ cp /usr/lib/ISOLINUX/isolinux.bin /out/iso/isolinux/
 cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32,libutil.c32,menu.c32} /out/iso/isolinux/
 cp /src/toolkit/build/isolinux.cfg /out/iso/isolinux/
 cp /src/toolkit/build/grub.cfg /out/iso/boot/grub/
-printf 'GBRUNCH toolbox v0.2\n' > /out/iso/GBRUNCH-TOOLBOX.txt
+printf 'GBRUNCH toolbox v0.3\n' > /out/iso/GBRUNCH-TOOLBOX.txt
 cp /src/toolkit/README.md /out/iso/README-GBRUNCH.md
 truncate -s 32M /out/efi.img
 mkfs.vfat /out/efi.img
@@ -85,6 +86,6 @@ grub-mkstandalone -O x86_64-efi --modules='part_gpt part_msdos fat iso9660 norma
 mcopy -i /out/efi.img /out/BOOTX64.EFI ::/EFI/BOOT/
 mkdir -p /out/iso/EFI/BOOT
 cp /out/BOOTX64.EFI /out/iso/EFI/BOOT/
-xorriso -as mkisofs -r -J -joliet-long -V GBRUNCH_TOOLBOX -o /out/gbrunch-toolbox-v0.2-amd64.iso -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin -partition_offset 16 -append_partition 2 0xef /out/efi.img -appended_part_as_gpt -iso_mbr_part_type 0x00 -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e --interval:appended_partition_2:all:: -no-emul-boot /out/iso
-sha256sum /out/gbrunch-toolbox-v0.2-amd64.iso > /out/ISO-SHA256.txt
+xorriso -as mkisofs -r -J -joliet-long -V GBRUNCH_TOOLBOX -o /out/gbrunch-toolbox-v0.3-amd64.iso -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin -partition_offset 16 -append_partition 2 0xef /out/efi.img -appended_part_as_gpt -iso_mbr_part_type 0x00 -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e --interval:appended_partition_2:all:: -no-emul-boot /out/iso
+sha256sum /out/gbrunch-toolbox-v0.3-amd64.iso > /out/ISO-SHA256.txt
 printf 'ISO_BUILD_FINISHED\n'

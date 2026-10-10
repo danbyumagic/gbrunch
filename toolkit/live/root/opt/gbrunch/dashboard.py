@@ -14,7 +14,7 @@ def read(path):
 def workspace():
  p=subprocess.run(['findmnt','-nr','-S','LABEL=GBWORK','-o','TARGET'],text=True,capture_output=True)
  return pathlib.Path(p.stdout.splitlines()[0]) if p.returncode==0 and p.stdout.strip() else None
-root=tk.Tk();root.title('GBRUNCH Toolbox — experimental v0.2');root.geometry('1000x720');root.minsize(800,680)
+root=tk.Tk();root.title('GBRUNCH Toolbox — experimental v0.3');root.geometry('1000x720');root.minsize(800,680)
 style=ttk.Style();style.theme_use('clam');style.configure('TFrame',background='#f3f5f8');style.configure('TLabel',background='#f3f5f8',font=('DejaVu Sans',11));style.configure('Title.TLabel',font=('DejaVu Sans',24,'bold'));style.configure('TButton',font=('DejaVu Sans',11),padding=12)
 f=ttk.Frame(root,padding=28);f.pack(fill='both',expand=True)
 ttk.Label(f,text='GBRUNCH Toolbox',style='Title.TLabel').pack(anchor='w')

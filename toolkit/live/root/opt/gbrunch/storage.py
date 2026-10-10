@@ -4,7 +4,7 @@ import sys,pathlib,subprocess,json,struct,zlib,uuid,hashlib,os,fcntl,traceback
 sys.path.insert(0,'/opt/gbrunch/source')
 from inspect_recovery import gpt
 from dualboot_installer import identity,capacity,require
-G=1<<30;M=1<<20;MAGIC='GBRUNCH toolbox v0.2'
+G=1<<30;M=1<<20;MAGIC='GBRUNCH toolbox v0.3'
 def run(*a,**kw):return subprocess.run([str(x) for x in a],check=True,**kw)
 def digest(d):return hashlib.sha256(json.dumps(d,sort_keys=True).encode()).hexdigest()
 def parse(path):

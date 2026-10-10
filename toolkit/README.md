@@ -1,4 +1,4 @@
-# GBRUNCH Toolbox v0.2
+# GBRUNCH Toolbox v0.3
 
 Debian 13 XFCE live desktop and local Googlebook builder, for a dedicated USB drive or USB SSD of 64 GB or larger. Write the hybrid ISO in raw/DD mode. Secure Boot must be disabled. The first session is temporary.
 
@@ -11,7 +11,7 @@ Debian 13 XFCE live desktop and local Googlebook builder, for a dedicated USB dr
 5. Reboot and select Try Googlebook OS from the UEFI toolbox menu. Return to the normal Linux entry to collect Android logs, inspect hardware or use the browser/terminal.
 6. Optionally select Install Googlebook on internal disk. Windows must already have one sufficiently large unallocated extent; this tool never shrinks NTFS. The reviewed INSTALL token authorizes copying into that extent with fresh 32 GiB data, a separate Googlebook ESP and Windows boot priority retained. Shut down and disconnect the USB after successful installation.
 
-Trial boot is UEFI; legacy BIOS supports the Linux toolbox. New builds keep the HP/QEMU-gated default and add an explicit experimental entry for other hardware. The previously built v0.2 ISO predates that menu; see ../docs/EXPERIMENTAL-BOOT.md for upgrading an existing disk. Keep the working external V7 SSD separate as a fallback. Repeated trial overwrite and compatibility rollback are not implemented.
+Trial boot is UEFI; legacy BIOS supports the Linux toolbox. New builds keep the HP/QEMU-gated default and add an explicit experimental entry for other hardware. This v0.3 build includes both entries. Keep the working external V7 SSD separate as a fallback. Repeated trial overwrite and compatibility rollback are not implemented.
 
 The local-image source is verified and exposed through read-only NBD. Trial copying happens before GPT commit; operation logs and original partition tables are saved in GBWORK/logs. Terminal transcripts are retained too. Diagnostics are local until you share them. Review reports for identifying information. GBWORK is ext4; Finder cannot ordinarily read it. Share from Linux or copy to another FAT/exFAT drive.
 
@@ -19,4 +19,4 @@ No Google-derived binary images are distributed in this ISO. Google system/super
 
 Only the earlier external V7 Android build on one HP Envy is physically proven. Toolbox deployment/install integration uses QEMU dummy system/Windows data; no new physical trial/internal installation success is claimed. The live account is live/live with passwordless sudo. Android data is unencrypted for this experiment. AI assistance uses your own browser/terminal account; none is bundled. Debian versions are recorded, not yet pinned to a reproducible snapshot.
 
-For drives larger than 64 GB, the existing v0.2 ISO needs the setup size-check fix in [the quick-start guide](../docs/QUICKSTART.md). New source builds include that fix.
+This v0.3 build includes the larger-SSD setup fix.

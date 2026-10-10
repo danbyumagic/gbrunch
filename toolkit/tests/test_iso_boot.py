@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Actual ISO-on-64GB-USB boot, virtual Ethernet, screenshots; no physical disks."""
 import pathlib,subprocess,shutil,socket,json,time,os,sys
-R=pathlib.Path(__file__).resolve().parents[2];W=pathlib.Path('/tmp/gbrunch-toolbox-test');E=R/'evidence';q=R/'tools/qemu/usr/share';ISO=pathlib.Path('/dev/shm/gbrunch-toolbox-output/gbrunch-toolbox-v0.2-amd64.iso')
+R=pathlib.Path(__file__).resolve().parents[2];W=pathlib.Path('/tmp/gbrunch-toolbox-test');E=R/'evidence';q=R/'tools/qemu/usr/share';ISO=pathlib.Path('/dev/shm/gbrunch-toolbox-output/gbrunch-toolbox-v0.3-amd64.iso')
 firmware=sys.argv[1] if len(sys.argv)>1 else 'uefi';usb=W/('boot-usb-'+firmware+'.qcow2');usb.unlink(missing_ok=True)
 subprocess.run([str(R/'build/qemu11/qemu-img'),'create','-f','qcow2','-F','raw','-b',str(ISO),str(usb),'64000000000'],check=True,stdout=subprocess.DEVNULL)
 sock=W/('qmp-'+firmware+'.sock');sock.unlink(missing_ok=True)

@@ -1,0 +1,12 @@
+{
+  "iso_sha256": "818c5e37d9a2ba104cb700d0275055347a690bc1c9ab2a0e1e84286ba0955924",
+  "bytes": 999632896,
+  "installed_source_hashes": {
+    "googlebook_boot_menu.py": "3ee43026743d1253728f39d328f62508fb6444f5423ecd238851659d5f5e8269",
+    "assemble_native_android.py": "0c3b001eb55aeb066d37dd540215019e29b16608f2ff88695eb3d7aeb85c3a15",
+    "dualboot_installer.py": "bf64b6ea3498a08a6bb9e10f4013b942c6e71e8fd7683a83bd3740bc5aa1ab37",
+    "toolbox_source.py": "da40f3f30a607437488146df6c2417e5d9405688913af4b87da1a8d384382179"
+  },
+  "large_ssd_fix_included": true,
+  "scope": "Compared installed scripts extracted from final ISO to checked source"
+}

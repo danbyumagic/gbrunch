@@ -19,7 +19,7 @@ Googlebook OS is proprietary. **This repository contains no Google recovery imag
 | Other laptops | Untested; default entry is HP/QEMU-gated, with an explicit experimental entry in new source builds |
 | Audio, Bluetooth, camera, sensors, sleep, media acceleration | Some Linux diagnostic evidence exists; full Android functionality is not established |
 
-The toolbox storage setup source now accepts **a dedicated USB drive or USB SSD of 64 GB or larger**, including a 240 GB SSD. The previously built v0.2 ISO has an upper-size check that must be patched for larger drives; see [the quick-start guide](docs/QUICKSTART.md). Capacity alone does not establish hardware support.
+Toolbox **v0.3** includes setup for a dedicated USB drive or USB SSD of **64 GB or larger**, including a 240 GB SSD, plus the experimental boot entry. No manual v0.2 patches are needed. Capacity alone does not establish hardware support.
 
 ## How it works
 
@@ -96,7 +96,7 @@ The research scripts retain development-environment paths and staged dependencie
 
 We want to support more Intel laptops, but need hardware evidence. See [CONTRIBUTING.md](CONTRIBUTING.md). Start with an external trial; collect exact PCI/USB/subsystem IDs, boot stage, build version, kernel/logcat and graphics/radio failures. Reaching the logo alone does not identify a graphics problem.
 
-The existing downloadable v0.2 ISO and already-built disks predate the new experimental menu. New source builds include it; existing disks can update only their owned EFI configuration using [the menu-upgrade guide](docs/EXPERIMENTAL-BOOT.md).
+The new v0.3 ISO includes the experimental menu. Older v0.2 images and already-built disks predate it; existing disks can update only their owned EFI configuration using [the menu-upgrade guide](docs/EXPERIMENTAL-BOOT.md).
 
 The Linux toolbox provides a terminal and browser for your preferred debugging tools or AI service. No account, API key or AI credential is bundled. Review logs before sharing them; hardware IDs, network information and account details can appear in diagnostic output. **Do not submit full recovery images or Android userdata.**
 

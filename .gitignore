@@ -5,8 +5,8 @@
 /google-recovery-cache/
 /evidence/
 /assets/
-/tools/local/
-/tools/qemu/
+/tools/local
+/tools/qemu
 /tools/qemu11/
 /tools/sepol311/
 /tools/debs/*.deb

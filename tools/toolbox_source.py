@@ -22,7 +22,7 @@ def workspace():
  parent=identity('/dev/'+node.parent.name);require(parent['usb'],'Workspace must be on USB')
  medium=subprocess.check_output(['findmnt','-nr','-o','SOURCE','--target','/run/live/medium'],text=True).strip()
  require((pathlib.Path('/sys/class/block')/pathlib.Path(medium).name).resolve().parent==node.parent,'Workspace must belong to the boot USB')
- require((pathlib.Path('/run/live/medium')/'GBRUNCH-TOOLBOX.txt').read_text().strip() in ('GBRUNCH toolbox v0.1','GBRUNCH toolbox v0.2'),'Not running from the toolbox')
+ require((pathlib.Path('/run/live/medium')/'GBRUNCH-TOOLBOX.txt').read_text().strip() in ('GBRUNCH toolbox v0.1','GBRUNCH toolbox v0.2','GBRUNCH toolbox v0.3'),'Not running from the toolbox')
  return pathlib.Path(row['target']).resolve(),parent
 def verify_artifacts(image,expected_backing):
  image=pathlib.Path(image).resolve();base=pathlib.Path(expected_backing).resolve();manifest=image.with_name(image.name+'.manifest.json')
