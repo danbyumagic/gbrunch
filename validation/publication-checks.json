@@ -1,6 +1,6 @@
 {
   "syntax_checks": {
-    "python": 114,
+    "python": 115,
     "shell": 16
   },
   "known_secret_patterns_found": false,

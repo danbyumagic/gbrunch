@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "pinned_archive_sha256": "ba6eac2e2c1482bb3b0e4f4c1aee658b1dc488cce54e5ccbb2726e01fa3376c3",
+  "manifest_verified": true,
+  "existing_assets_overwrite_refused": true,
+  "scope": "Local pinned archive; no GitHub release download claim"
+}

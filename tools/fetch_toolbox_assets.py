@@ -22,7 +22,7 @@ def main():
    if not path.resolve().is_relative_to(package.resolve()):raise SystemExit('Invalid manifest path.')
    if hashlib.sha256(path.read_bytes()).hexdigest()!=expected:raise SystemExit('Asset hash mismatch: '+name)
   shutil.copytree(package/'assets',ROOT/'assets')
-  runtime=ROOT/'toolkit/runtime';runtime.mkdir(exist_ok=True)
+  runtime=ROOT/'toolkit/runtime';runtime.mkdir(parents=True,exist_ok=True)
   for name in ['internal-BOOTX64.EFI','trial-BOOTX64.EFI']:
    dest=runtime/name
    if dest.exists() and hashlib.sha256(dest.read_bytes()).hexdigest()!=manifest['runtime/'+name]:
