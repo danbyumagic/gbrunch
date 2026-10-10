@@ -35,19 +35,15 @@ Toolbox **v0.3** includes persistent USB storage, the local recovery builder and
 ## How it works
 
 ```mermaid
+%%{init: {'flowchart': {'nodeSpacing': 15, 'rankSpacing': 20}}}%%
 flowchart TD
-    A[Official Lenovo Ruby recovery downloaded from Google] --> B[Verify pinned ZIP and raw image hashes]
-    B --> C[Keep original recovery read-only]
-    C --> D[Private local QCOW2 compatibility view]
-    E[Independent GBRUNCH boot and compatibility files] --> D
-    F[Cuttlefish software KeyMint and Gatekeeper] --> D
-    G[Intel firmware and local vendor service/policy changes] --> D
-    D --> H[Verified read-only source]
-    H --> I[Trial partitions on toolbox USB or USB SSD]
-    H --> J[Optional install into existing internal free space]
-    I --> K[UEFI and GRUB start original Google kernel and matching modules]
-    J --> K
-    K --> L[Google Android desktop with compatibility environment]
+    A[Official Lenovo recovery<br/>Verify hashes · keep read-only] --> C[Local compatibility image]
+    B[GBRUNCH boot files<br/>Software security · Intel firmware<br/>Local vendor changes] --> C
+    C --> D[External USB trial]
+    C --> E[Optional internal install]
+    D --> F[UEFI / GRUB → original Google kernel]
+    E --> F
+    F --> G[Googlebook desktop]
 ```
 
 1. The builder imports the pinned Lenovo **Ruby** recovery, build **16452207 / CL3B.260622.271.R1**, from Google's official infrastructure. It checks the ZIP and extracted image hashes and retains those originals.
