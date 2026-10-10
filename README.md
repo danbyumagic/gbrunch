@@ -1,10 +1,10 @@
 # GBRUNCH
 
-I'm building GBRUNCH to run Googlebook OS on ordinary Intel UEFI laptops. It builds a local bootable image from an **official Lenovo Googlebook recovery**, preserving Google's original system partitions and adding a separate compatibility layer.
+GBRUNCH is an experimental project to run Googlebook OS on ordinary Intel UEFI laptops. It builds a local bootable image from an **official Lenovo Googlebook recovery**, preserving Google's original system partitions and adding a separate compatibility layer.
 
 > **Experimental: things can go wrong.** Boot failures, crashes, broken hardware support and data loss are possible. Writing the ISO erases the selected drive, and choosing the wrong disk can destroy your existing data. Back up anything important and start with a dedicated external drive before attempting internal installation.
 
-**I've booted Googlebook OS to the home screen on my HP Envy x360 15-fe1xxx with a Core Ultra 7 155U.** The V6 changes substantially improved graphics, color and responsiveness; Wi-Fi worked after V7. This is the only laptop I have available to test. I'm opening the project for collaboration so we can explore support for more laptops, but I can't promise that yours will work.
+**Googlebook OS has booted to the home screen on an HP Envy x360 15-fe1xxx with a Core Ultra 7 155U.** The V6 changes substantially improved graphics, color and responsiveness; Wi-Fi worked after V7. This is the only laptop currently available for physical testing. The project is open for collaboration to expand hardware support; compatibility with other laptops remains unverified.
 
 Googlebook OS is proprietary. **This repository contains no Google recovery image, original Google kernel/module/ramdisk, derived Google vendor/policy image, account data, or raw device logs.** Download recovery directly from Google and build locally. Do not upload generated recovery-derived images here.
 
@@ -12,7 +12,7 @@ Googlebook OS is proprietary. **This repository contains no Google recovery imag
 
 | Component | Evidence / current limit |
 | --- | --- |
-| External Googlebook desktop | Booted on my HP described below; I confirmed improved graphics/responsiveness and working Wi-Fi |
+| External Googlebook desktop | Booted on the HP described below; improved graphics/responsiveness and working Wi-Fi confirmed in physical testing |
 | Official recovery import | Full pinned Lenovo recovery downloaded, hashed, inspected and assembled locally |
 | Linux toolbox | Debian 13 / XFCE, browser, terminal, NetworkManager, hardware reports and persistent logs; UEFI desktop demonstrated in QEMU |
 | Same-drive Googlebook trial | Production copy/readback and GPT rollback tested in QEMU; cold UEFI handoff reached the original Google kernel; complete Android boot in this new layout not physically confirmed |
@@ -67,7 +67,7 @@ The trial creates fresh **16 GiB Android userdata** alongside a **24 GiB Linux w
 
 Internal installation requires an existing sufficiently large unallocated region, standard supported GPT/512-byte-sector geometry and unencrypted Windows partitions. The installer never shrinks NTFS. Its default userdata is **32 GiB**; budget roughly **60 GB unallocated** and review the calculated plan. Back up Windows before changing its disk layout. No automatic update/uninstall workflow is provided yet.
 
-## My test laptop
+## Tested hardware
 
 | Item | Observed hardware |
 | --- | --- |
@@ -96,7 +96,7 @@ The research scripts retain development-environment paths and staged dependencie
 
 ## Collaboration and debugging
 
-I want GBRUNCH to work on more Intel laptops. To get there, we need reports from people testing other hardware. See [CONTRIBUTING.md](CONTRIBUTING.md). Start with an external trial; collect exact PCI/USB/subsystem IDs, boot stage, build version, kernel/logcat and graphics/radio failures. Reaching the logo alone does not identify a graphics problem.
+The goal is to support more Intel laptops. Reports from people testing other hardware will help establish compatibility and identify missing support. See [CONTRIBUTING.md](CONTRIBUTING.md). Start with an external trial; collect exact PCI/USB/subsystem IDs, boot stage, build version, kernel/logcat and graphics/radio failures. Reaching the logo alone does not identify a graphics problem.
 
 The new v0.3 ISO includes the experimental menu. Older v0.2 images and already-built disks predate it; existing disks can update only their owned EFI configuration using [the menu-upgrade guide](docs/EXPERIMENTAL-BOOT.md).
 
@@ -106,7 +106,7 @@ Priority work includes portable test runners, broader hardware profiles without 
 
 ## Credits and licensing
 
-GBRUNCH is my project, developed with AI assistance from **OpenAI GPT-6.1 Sol** for research, coding, debugging and documentation. I carried out the physical tests on my HP. The validation records distinguish those results from virtual-machine tests.
+GBRUNCH is a project by **Daniel Jensen**, developed with AI assistance from **OpenAI GPT-6.1 Sol** for research, coding, debugging and documentation. Physical HP testing was carried out by Daniel. The validation records distinguish physical results from virtual-machine tests.
 
 The project builds on earlier work and upstream components:
 
