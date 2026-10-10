@@ -1,12 +1,14 @@
 # Write the same ISO on Linux or Windows
 
-Use a spare 64 GB USB. The write erases that USB; preserve the working Googlebook SSD separately.
+> **Experimental software: things can go wrong.** The system may fail to boot, crash or leave hardware unusable until you return to another OS. Disk-writing or installation mistakes can cause data loss. Back up important data, verify the target disk, and test externally before attempting internal installation.
+
+Use a dedicated USB drive or USB SSD of at least 64 GB. The write erases that USB; preserve the working Googlebook SSD separately.
 
 Download the ISO from https://filebin.net/gbrunch-toolbox-v03-818c5e37d9a2/gbrunch-toolbox-v0.3-amd64.iso
 
 SHA256: 818c5e37d9a2ba104cb700d0275055347a690bc1c9ab2a0e1e84286ba0955924
 
-Linux: verify with sha256sum. Use lsblk -o NAME,SIZE,MODEL,TRAN,MOUNTPOINTS to identify the whole 64 GB USB, unmount its mounted partitions, then write to that whole device:
+Linux: verify with sha256sum. Use lsblk -o NAME,SIZE,MODEL,TRAN,MOUNTPOINTS to identify the dedicated whole USB disk, unmount its mounted partitions, then write to that whole device:
 
 ```sh
 sudo dd if=gbrunch-toolbox-v0.3-amd64.iso of=/dev/sdX bs=4M status=progress conv=fsync

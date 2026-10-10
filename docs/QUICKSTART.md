@@ -1,5 +1,7 @@
 # Experimental toolbox quick start
 
+> **Experimental software: things can go wrong.** The system may fail to boot, crash or leave hardware unusable until you return to another OS. Disk-writing or installation mistakes can cause data loss. Back up important data, verify the target disk, and test externally before attempting internal installation.
+
 Use a dedicated USB drive or USB SSD of at least 64 GB marketed capacity. Writing the ISO erases its old installation. A 240 GB USB SSD is suitable; the additional space is not automatically allocated to Android userdata.
 
 ## Download

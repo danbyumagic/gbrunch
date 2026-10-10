@@ -1,6 +1,8 @@
 # GBRUNCH Toolbox v0.3 — prepare and try Googlebook locally
 
-Use a spare **64 GB or larger USB drive/USB SSD**. Writing the ISO erases that USB. Keep the working Googlebook SSD and 32 GB installer separate. Your Mac needs about 1 GB free for this ISO; the large recovery download/build happens on the USB in Linux.
+> **Experimental software: things can go wrong.** The system may fail to boot, crash or leave hardware unusable until you return to another OS. Disk-writing or installation mistakes can cause data loss. Back up important data, verify the target disk, and test externally before attempting internal installation.
+
+Use a spare **64 GB or larger USB drive/USB SSD**. Writing the ISO erases that USB. If you have a working Googlebook SSD, keep it as a fallback unless you deliberately choose to erase and reuse it. Your Mac needs about 1 GB free for this ISO; the large recovery download/build happens on the USB in Linux.
 
 ```sh
 cd ~/Downloads
@@ -11,7 +13,7 @@ echo '818c5e37d9a2ba104cb700d0275055347a690bc1c9ab2a0e1e84286ba0955924  gbrunch-
 diskutil list external physical
 ```
 
-Identify the **64 GB USB whole disk**. Replace N with its current number, not a partition suffix. Do not assume it is disk21 or use the 240 GB working SSD.
+Identify the **whole disk for the USB drive or USB SSD you intend to erase**. Replace N with its current number, not a partition suffix. Do not assume it is disk21. A 240 GB USB SSD is supported, but reusing a working Googlebook SSD erases that installation.
 
 ```sh
 diskutil unmountDisk /dev/diskN
