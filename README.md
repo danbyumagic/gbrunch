@@ -113,6 +113,15 @@ The Linux toolbox provides a terminal and browser for your preferred debugging t
 
 Priority work includes portable test runners, broader hardware profiles without removing disk safeguards, live physical-toolbox testing, Android audio/suspend/media support, repeatable compatibility updates/rollback and a safe uninstall path.
 
+## Next steps and future ideas
+
+These are development goals, not features available in the current release. Contributions and implementation ideas are welcome.
+
+- **Brunch-style booting alongside Windows:** explore keeping Googlebook in a disk-image file on a Windows partition and booting it through a UEFI/GRUB entry, so a dedicated external drive or separate Android partition layout is not required. This means rebooting into Googlebook, rather than running it inside Windows. Filesystem access, image-backed Android partitions, persistent data, Windows encryption, recovery and safe boot-entry removal all need investigation. This is separate from the existing experimental installer that copies into unallocated space.
+- **A virtual-machine image and build workflow:** provide a reproducible way to build a Googlebook VM locally from the official recovery, with documented virtual hardware and useful debug logs. A VM would make userspace testing easier before trying bare metal, although it would not establish support for a laptop's physical GPU, Wi-Fi or other devices. Start with QEMU; Windows virtualization options can be investigated later. Google recovery-derived VM images would remain locally built rather than redistributed.
+- **More hardware and missing HP features:** get webcam and sound working on the tested HP, and use reports from other laptops to develop explicit hardware profiles.
+- **Updates and recovery:** develop compatibility updates, rollback and uninstall workflows before treating this as an everyday installation.
+
 ## Credits and licensing
 
 GBRUNCH is a project by **[danbyumagic](https://github.com/danbyumagic)**, developed with AI assistance from **OpenAI GPT-6.1 Sol** for research, coding, debugging and documentation. Physical HP testing was carried out by [danbyumagic](https://github.com/danbyumagic). The validation records distinguish physical results from virtual-machine tests.
