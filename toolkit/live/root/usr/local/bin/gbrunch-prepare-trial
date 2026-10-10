@@ -1,0 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+work=$(findmnt -nr -S LABEL=GBWORK -o TARGET | head -n1)
+[ -n "$work" ] || { echo 'Initialize USB storage and reboot first.'; read -r; exit 1; }
+mkdir -p "$work/logs"
+python3 -u /opt/gbrunch/trial.py 2>&1 | tee "$work/logs/trial-console-$(date -u +%Y%m%d-%H%M%S).log"

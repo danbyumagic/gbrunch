@@ -1,0 +1,28 @@
+{
+  "artifacts": [
+    {
+      "path": "/tmp/gbrunch-standalone-source.qcow2",
+      "inode": 16537,
+      "device": 33,
+      "bytes": 517144576,
+      "mtime_ns": 1791655728999038732
+    },
+    {
+      "path": "/workspace/gbrunch/downloads/ruby-recovery.raw",
+      "inode": 789738,
+      "device": 27,
+      "bytes": 19069493760,
+      "mtime_ns": 1791400520574527598
+    },
+    {
+      "path": "/tmp/gbrunch-standalone-source.qcow2.manifest.json",
+      "inode": 16564,
+      "device": 33,
+      "bytes": 2381,
+      "mtime_ns": 1791655730420556825
+    }
+  ],
+  "image_sha256": "e50d7e8759a6e4a44324434e3f9e27c3e3f6873e9acfc692bcdebc6c1eea04bd",
+  "manifest_sha256": "8057f34d6c76e0d8d2c77254ce8f51f058109f6efea6cb1f309538bf231994b5",
+  "virtual_bytes": 19786646016
+}

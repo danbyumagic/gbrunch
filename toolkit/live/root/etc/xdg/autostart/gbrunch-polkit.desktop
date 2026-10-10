@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Authentication Agent
+Exec=lxpolkit
+OnlyShowIn=XFCE;
+NoDisplay=true

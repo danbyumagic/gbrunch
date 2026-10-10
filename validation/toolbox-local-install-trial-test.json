@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "production_nbd_readonly_source": true,
+  "invalid_verification_record_refused": true,
+  "unverified_nbd_refused": true,
+  "boot_usb_refused_as_internal_target": true,
+  "windows_partition_bytes_unchanged": true,
+  "uefi_registration_preserves_boot_order": true,
+  "production_trial_deployment_passed": true,
+  "trial_gpt_commit_failure_rolled_back": true,
+  "iso_efi_bytes_unchanged": true,
+  "workspace_retained": true,
+  "fresh_trial_userdata_gib": 16,
+  "fresh_internal_userdata_gib": 32,
+  "second_trial_overwrite_refused": true,
+  "scope": "QEMU physical-device paths, dummy source system partitions, original Google kernel hash checked; base hash substituted only in test process; no Android desktop claim"
+}

@@ -1,0 +1,22 @@
+#!/bin/bash
+set -euo pipefail
+work=$(findmnt -nr -S LABEL=GBWORK -o TARGET | head -n1)
+[ -n "$work" ] || { echo 'No GBWORK workspace mounted.'; read -r; exit 1; }
+mkdir -p "$work/recovery" "$work/logs"
+if [ -e "$work/recovery/source.qcow2" ]; then
+ echo 'A local source image already exists. Preserve it and its logs; this version does not overwrite it.'
+ read -r; exit 1
+fi
+free=$(df --output=avail -B1 "$work" | tail -n1)
+[ "$free" -ge 20000000000 ] || { echo 'Need approximately 20 GB free for the official download, sparse extraction and local build.'; read -r; exit 1; }
+echo 'Google recovery will be downloaded and verified locally. No internal disk writes.'
+echo "Logs: $work/logs/recovery-build.log"
+export PYTHONDONTWRITEBYTECODE=1
+set +e
+python3 /opt/gbrunch/source/assemble_native_android.py --download --cache "$work/recovery" --assets /opt/gbrunch/assets --format qcow2 --output "$work/recovery/source.qcow2" 2>&1 | tee "$work/logs/recovery-build.log"
+rc=${PIPESTATUS[0]}
+set -e
+echo "Build exit status: $rc"
+[ "$rc" -eq 0 ] && echo 'Local recovery view prepared. Next choose Prepare USB Googlebook trial, or Install Googlebook on internal disk.'
+echo 'Press Enter to close.'; read -r
+exit "$rc"

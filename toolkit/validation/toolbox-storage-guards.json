@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "iso_profile_validated": true,
+  "workspace_index": 4,
+  "capacity_guards": {
+    "32000000000": "refused",
+    "240057409536": "refused",
+    "1000000000000": "refused"
+  }
+}

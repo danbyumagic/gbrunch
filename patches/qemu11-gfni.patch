@@ -1,0 +1,263 @@
+diff --git a/target/i386/cpu.c b/target/i386/cpu.c
+index 5805d33..386b484 100644
+--- a/target/i386/cpu.c
++++ b/target/i386/cpu.c
+@@ -992,7 +992,7 @@ void x86_cpu_vendor_words2str(char *dst, uint32_t vendor1,
+ #define TCG_7_0_ECX_FEATURES (CPUID_7_0_ECX_UMIP | CPUID_7_0_ECX_PKU | \
+           /* CPUID_7_0_ECX_OSPKE is dynamic */ \
+           CPUID_7_0_ECX_LA57 | CPUID_7_0_ECX_PKS | CPUID_7_0_ECX_VAES | \
+-          TCG_7_0_ECX_RDPID)
++          TCG_7_0_ECX_RDPID | CPUID_7_0_ECX_GFNI | CPUID_7_0_ECX_VPCLMULQDQ)
+ 
+ #if defined CONFIG_USER_ONLY
+ #define CPUID_7_0_EDX_KERNEL_FEATURES (CPUID_7_0_EDX_SPEC_CTRL | \
+@@ -1003,7 +1003,7 @@ void x86_cpu_vendor_words2str(char *dst, uint32_t vendor1,
+ #define TCG_7_0_EDX_FEATURES (CPUID_7_0_EDX_FSRM | CPUID_7_0_EDX_KERNEL_FEATURES)
+ 
+ #define TCG_7_1_EAX_FEATURES (CPUID_7_1_EAX_FZRM | CPUID_7_1_EAX_FSRS | \
+-          CPUID_7_1_EAX_FSRC | CPUID_7_1_EAX_CMPCCXADD)
++          CPUID_7_1_EAX_FSRC | CPUID_7_1_EAX_CMPCCXADD | CPUID_7_1_EAX_AVX_VNNI)
+ #define TCG_7_1_ECX_FEATURES 0
+ #define TCG_7_1_EDX_FEATURES 0
+ #define TCG_7_2_EDX_FEATURES 0
+diff --git a/target/i386/ops_sse.h b/target/i386/ops_sse.h
+index 5176a9f..842d8bf 100644
+--- a/target/i386/ops_sse.h
++++ b/target/i386/ops_sse.h
+@@ -2659,6 +2659,115 @@ void helper_sha256msg2(Reg *d, Reg *a, Reg *b)
+ }
+ #endif
+ 
++#if SHIFT >= 1
++/* GBRUNCH experimental GFNI emulation: no Google guest code changes. */
++
++static void glue(gbrunch_vnni, SUFFIX)(Reg *d, Reg *v, Reg *s,
++                                      bool words, bool saturate)
++{
++    Reg dd = *d, vv = *v, ss = *s;
++    for (int i = 0; i < (2 << SHIFT); i++) {
++        int64_t sum = (int32_t)dd.L(i);
++        if (words) {
++            for (int j = 0; j < 2; j++) {
++                sum += (int64_t)(int16_t)vv.W(2*i+j) * (int16_t)ss.W(2*i+j);
++            }
++        } else {
++            for (int j = 0; j < 4; j++) {
++                sum += (int64_t)vv.B(4*i+j) * (int8_t)ss.B(4*i+j);
++            }
++        }
++        if (saturate) {
++            sum = MIN(MAX(sum, INT32_MIN), INT32_MAX);
++        }
++        d->L(i) = (uint32_t)sum;
++    }
++}
++void glue(helper_vpdpbusd, SUFFIX)(CPUX86State *env, Reg *d, Reg *v, Reg *s)
++{
++    glue(gbrunch_vnni, SUFFIX)(d, v, s, false, false);
++}
++void glue(helper_vpdpbusds, SUFFIX)(CPUX86State *env, Reg *d, Reg *v, Reg *s)
++{
++    glue(gbrunch_vnni, SUFFIX)(d, v, s, false, true);
++}
++void glue(helper_vpdpwssd, SUFFIX)(CPUX86State *env, Reg *d, Reg *v, Reg *s)
++{
++    glue(gbrunch_vnni, SUFFIX)(d, v, s, true, false);
++}
++void glue(helper_vpdpwssds, SUFFIX)(CPUX86State *env, Reg *d, Reg *v, Reg *s)
++{
++    glue(gbrunch_vnni, SUFFIX)(d, v, s, true, true);
++}
++
++static uint8_t glue(gbrunch_gf_mul, SUFFIX)(uint8_t a, uint8_t b)
++{
++    uint8_t result = 0;
++    for (int i = 0; i < 8; i++) {
++        if (b & 1) {
++            result ^= a;
++        }
++        a = (a << 1) ^ ((a & 0x80) ? 0x1b : 0);
++        b >>= 1;
++    }
++    return result;
++}
++
++static uint8_t glue(gbrunch_gf_inv, SUFFIX)(uint8_t a)
++{
++    uint8_t result = 1;
++    unsigned exponent = 254;
++    while (exponent) {
++        if (exponent & 1) {
++            result = glue(gbrunch_gf_mul, SUFFIX)(result, a);
++        }
++        a = glue(gbrunch_gf_mul, SUFFIX)(a, a);
++        exponent >>= 1;
++    }
++    return result;
++}
++
++void glue(helper_gf2p8mulb, SUFFIX)(CPUX86State *env, Reg *d, Reg *v, Reg *s)
++{
++    Reg vv = *v, ss = *s;
++    for (int i = 0; i < (8 << SHIFT); i++) {
++        d->B(i) = glue(gbrunch_gf_mul, SUFFIX)(vv.B(i), ss.B(i));
++    }
++}
++
++static void glue(gbrunch_gf_affine, SUFFIX)(Reg *d, Reg *v, Reg *s,
++                                         uint32_t immediate, bool inverse)
++{
++    Reg vv = *v, ss = *s;
++    for (int i = 0; i < (8 << SHIFT); i++) {
++        uint8_t x = vv.B(i), result = immediate;
++        if (inverse) {
++            x = glue(gbrunch_gf_inv, SUFFIX)(x);
++        }
++        for (int bit = 0; bit < 8; bit++) {
++            uint8_t row = ss.B((i & ~7) + 7 - bit) & x;
++            row ^= row >> 4;
++            row ^= row >> 2;
++            row ^= row >> 1;
++            result ^= (row & 1) << bit;
++        }
++        d->B(i) = result;
++    }
++}
++
++void glue(helper_gf2p8affineqb, SUFFIX)(CPUX86State *env, Reg *d, Reg *v, Reg *s,
++                                     uint32_t immediate)
++{
++    glue(gbrunch_gf_affine, SUFFIX)(d, v, s, immediate, false);
++}
++
++void glue(helper_gf2p8affineinvqb, SUFFIX)(CPUX86State *env, Reg *d, Reg *v, Reg *s,
++                                        uint32_t immediate)
++{
++    glue(gbrunch_gf_affine, SUFFIX)(d, v, s, immediate, true);
++}
++#endif
++
+ #undef SSE_HELPER_S
+ 
+ #undef LANE_WIDTH
+diff --git a/target/i386/tcg/decode-new.c.inc b/target/i386/tcg/decode-new.c.inc
+index da41c97..ff057b6 100644
+--- a/target/i386/tcg/decode-new.c.inc
++++ b/target/i386/tcg/decode-new.c.inc
+@@ -712,6 +712,11 @@ static void decode_0FD6(DisasContext *s, CPUX86State *env, X86OpEntry *entry, ui
+ }
+ 
+ static const X86OpEntry opcodes_0F38_00toEF[240] = {
++    [0x50] = X86_OP_ENTRY3(VPDPBUSD, V,x, H,x, W,x, vex6 cpuid(AVXVNNI) p_66),
++    [0x51] = X86_OP_ENTRY3(VPDPBUSDS, V,x, H,x, W,x, vex6 cpuid(AVXVNNI) p_66),
++    [0x52] = X86_OP_ENTRY3(VPDPWSSD, V,x, H,x, W,x, vex6 cpuid(AVXVNNI) p_66),
++    [0x53] = X86_OP_ENTRY3(VPDPWSSDS, V,x, H,x, W,x, vex6 cpuid(AVXVNNI) p_66),
++
+     [0x00] = X86_OP_ENTRY3(PSHUFB,    V,x,  H,x,   W,x,  vex4 cpuid(SSSE3) mmx avx2_256 p_00_66),
+     [0x01] = X86_OP_ENTRY3(PHADDW,    V,x,  H,x,   W,x,  vex4 cpuid(SSSE3) mmx avx2_256 p_00_66),
+     [0x02] = X86_OP_ENTRY3(PHADDD,    V,x,  H,x,   W,x,  vex4 cpuid(SSSE3) mmx avx2_256 p_00_66),
+@@ -854,6 +859,7 @@ static const X86OpEntry opcodes_0F38_00toEF[240] = {
+     [0xcc] = X86_OP_ENTRY2(SHA256MSG1,  V,dq, W,dq, cpuid(SHA_NI)),
+     [0xcd] = X86_OP_ENTRY2(SHA256MSG2,  V,dq, W,dq, cpuid(SHA_NI)),
+ 
++    [0xcf] = X86_OP_ENTRY3(VGF2P8MULB, V,x, H,x, W,x, vex4 cpuid(GFNI) p_66),
+     [0xdb] = X86_OP_ENTRY3(VAESIMC,     V,dq, None,None, W,dq, vex4 cpuid(AES) p_66),
+     [0xdc] = X86_OP_ENTRY3(VAESENC,     V,x,  H,x,       W,x,  vex4 cpuid(AES) p_66),
+     [0xdd] = X86_OP_ENTRY3(VAESENCLAST, V,x,  H,x,       W,x,  vex4 cpuid(AES) p_66),
+@@ -954,6 +960,8 @@ static void decode_VINSERTPS(DisasContext *s, CPUX86State *env, X86OpEntry *entr
+ }
+ 
+ static const X86OpEntry opcodes_0F3A[256] = {
++    [0xce] = X86_OP_ENTRY4(VGF2P8AFFINEQB, V,x, H,x, W,x, vex4 cpuid(GFNI) p_66),
++    [0xcf] = X86_OP_ENTRY4(VGF2P8AFFINEINVQB, V,x, H,x, W,x, vex4 cpuid(GFNI) p_66),
+     /*
+      * These are VEX-only, but incorrectly listed in the manual as exception type 4.
+      * Also the "qq" instructions are sometimes omitted by Table 2-17, but are VEX256
+@@ -979,7 +987,7 @@ static const X86OpEntry opcodes_0F3A[256] = {
+     [0x40] = X86_OP_ENTRY4(VDPPS,      V,x,  H,x,  W,x,  vex2 cpuid(SSE41) p_66),
+     [0x41] = X86_OP_ENTRY4(VDPPD,      V,dq, H,dq, W,dq, vex2 cpuid(SSE41) p_66),
+     [0x42] = X86_OP_ENTRY4(VMPSADBW,   V,x,  H,x,  W,x,  vex2 cpuid(SSE41) avx2_256 p_66),
+-    [0x44] = X86_OP_ENTRY4(PCLMULQDQ,  V,dq, H,dq, W,dq, vex4 cpuid(PCLMULQDQ) p_66),
++    [0x44] = X86_OP_ENTRY4(PCLMULQDQ,  V,x, H,x, W,x, vex4 cpuid(PCLMULQDQ) p_66),
+     [0x46] = X86_OP_ENTRY4(VPERM2x128, V,qq, H,qq, W,qq, vex6 chk(W0) cpuid(AVX2) p_66),
+ 
+     [0x60] = X86_OP_ENTRY4(PCMPESTRM,  None,None, V,dq, W,dq, vex4_unal cpuid(SSE42) p_66),
+@@ -2541,7 +2549,8 @@ static bool has_cpuid_feature(DisasContext *s, X86CPUIDFeature cpuid)
+     case X86_FEAT_MOVBE:
+         return (s->cpuid_ext_features & CPUID_EXT_MOVBE);
+     case X86_FEAT_PCLMULQDQ:
+-        return (s->cpuid_ext_features & CPUID_EXT_PCLMULQDQ);
++        return (s->cpuid_ext_features & CPUID_EXT_PCLMULQDQ) &&
++            (!s->vex_l || (s->cpuid_7_0_ecx_features & CPUID_7_0_ECX_VPCLMULQDQ));
+     case X86_FEAT_POPCNT:
+         return (s->cpuid_ext_features & CPUID_EXT_POPCNT);
+     case X86_FEAT_SSE:
+@@ -2569,6 +2578,10 @@ static bool has_cpuid_feature(DisasContext *s, X86CPUIDFeature cpuid)
+ 
+     case X86_FEAT_AVX:
+         return (s->cpuid_ext_features & CPUID_EXT_AVX);
++    case X86_FEAT_AVXVNNI:
++        return (s->cpuid_7_1_eax_features & CPUID_7_1_EAX_AVX_VNNI);
++    case X86_FEAT_GFNI:
++        return (s->cpuid_7_0_ecx_features & CPUID_7_0_ECX_GFNI);
+     case X86_FEAT_XSAVE:
+         return (s->cpuid_ext_features & CPUID_EXT_XSAVE);
+ 
+diff --git a/target/i386/tcg/decode-new.h b/target/i386/tcg/decode-new.h
+index 9282296..4b40d79 100644
+--- a/target/i386/tcg/decode-new.h
++++ b/target/i386/tcg/decode-new.h
+@@ -105,6 +105,8 @@ typedef enum X86CPUIDFeature {
+     X86_FEAT_3DNOW,
+     X86_FEAT_ADX,
+     X86_FEAT_AES,
++    X86_FEAT_GFNI,
++    X86_FEAT_AVXVNNI,
+     X86_FEAT_AVX,
+     X86_FEAT_AVX2,
+     X86_FEAT_BMI1,
+diff --git a/target/i386/tcg/emit.c.inc b/target/i386/tcg/emit.c.inc
+index 473f415..d71a2b5 100644
+--- a/target/i386/tcg/emit.c.inc
++++ b/target/i386/tcg/emit.c.inc
+@@ -793,6 +793,8 @@ BINARY_IMM_SSE(VDPPS,      dpps)
+ BINARY_IMM_SSE(VDPPD,      dppd)
+ BINARY_IMM_SSE(VMPSADBW,   mpsadbw)
+ BINARY_IMM_SSE(PCLMULQDQ,  pclmulqdq)
++BINARY_IMM_SSE(VGF2P8AFFINEQB, gf2p8affineqb)
++BINARY_IMM_SSE(VGF2P8AFFINEINVQB, gf2p8affineinvqb)
+ 
+ 
+ #define UNARY_INT_GVEC(uname, func, ...)                                           \
+@@ -966,6 +968,12 @@ BINARY_INT_SSE(VAESDEC, aesdec)
+ BINARY_INT_SSE(VAESDECLAST, aesdeclast)
+ BINARY_INT_SSE(VAESENC, aesenc)
+ BINARY_INT_SSE(VAESENCLAST, aesenclast)
++BINARY_INT_SSE(VGF2P8MULB, gf2p8mulb)
++BINARY_INT_SSE(VPDPBUSD, vpdpbusd)
++BINARY_INT_SSE(VPDPBUSDS, vpdpbusds)
++BINARY_INT_SSE(VPDPWSSD, vpdpwssd)
++BINARY_INT_SSE(VPDPWSSDS, vpdpwssds)
++
+ 
+ #define UNARY_CMP_SSE(uname, lname)                                                \
+ static void gen_##uname(DisasContext *s, X86DecodedInsn *decode)                   \
+diff --git a/target/i386/tcg/ops_sse_header.h.inc b/target/i386/tcg/ops_sse_header.h.inc
+index bbeb730..5d34270 100644
+--- a/target/i386/tcg/ops_sse_header.h.inc
++++ b/target/i386/tcg/ops_sse_header.h.inc
+@@ -342,6 +342,14 @@ DEF_HELPER_3(crc32, tl, i32, tl, i32)
+ 
+ /* AES-NI op helpers */
+ #if SHIFT >= 1
++DEF_HELPER_4(glue(gf2p8mulb, SUFFIX), void, env, Reg, Reg, Reg)
++DEF_HELPER_4(glue(vpdpbusd, SUFFIX), void, env, Reg, Reg, Reg)
++DEF_HELPER_4(glue(vpdpbusds, SUFFIX), void, env, Reg, Reg, Reg)
++DEF_HELPER_4(glue(vpdpwssd, SUFFIX), void, env, Reg, Reg, Reg)
++DEF_HELPER_4(glue(vpdpwssds, SUFFIX), void, env, Reg, Reg, Reg)
++
++DEF_HELPER_5(glue(gf2p8affineqb, SUFFIX), void, env, Reg, Reg, Reg, i32)
++DEF_HELPER_5(glue(gf2p8affineinvqb, SUFFIX), void, env, Reg, Reg, Reg, i32)
+ DEF_HELPER_4(glue(aesdec, SUFFIX), void, env, Reg, Reg, Reg)
+ DEF_HELPER_4(glue(aesdeclast, SUFFIX), void, env, Reg, Reg, Reg)
+ DEF_HELPER_4(glue(aesenc, SUFFIX), void, env, Reg, Reg, Reg)

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "real_64gb_usb_setup": true,
+  "iso_boot_partitions_preserved": true,
+  "desktop_overlay_persisted_across_reboot": true,
+  "report_zip_persisted": true,
+  "networkmanager_virtual_ethernet_connected": true,
+  "firefox_installed": "Mozilla Firefox 153.4.0esr",
+  "scope": "QEMU live USB; physical Wi-Fi and laptop graphics not tested",
+  "original_iso_efi_gap_bytes_verified_unchanged": true,
+  "iso_sha256": "fdd5441f501e187bf0bf21374b0b5a2fb01a3331dc0ae25b75e101745a83eea9",
+  "final_hostname_verified": true,
+  "polkit_and_pipewire_pulse_packages_verified": true
+}

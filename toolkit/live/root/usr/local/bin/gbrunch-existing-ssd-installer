@@ -1,0 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+work=$(findmnt -nr -S LABEL=GBWORK -o TARGET | head -n1)
+[ -n "$work" ] || { echo 'Persistent workspace required.'; read -r; exit 1; }
+mkdir -p "$work/logs/installer"
+if [ -e /logs ] && [ ! -L /logs ]; then echo '/logs already exists; refusing to redirect it.'; read -r; exit 1; fi
+ln -sfn "$work/logs/installer" /logs
+# The proven installer expects this loader location; never replace Windows EFI.
+mkdir -p /installer
+cp /opt/gbrunch/source/internal-BOOTX64.EFI /installer/
+exec python3 /opt/gbrunch/source/installer_console.py

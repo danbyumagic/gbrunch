@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "firmware": "SeaBIOS",
+  "media": "ISO-backed 64GB virtual USB",
+  "xfce_desktop": true,
+  "dashboard_visible": true,
+  "iso_sha256": "fdd5441f501e187bf0bf21374b0b5a2fb01a3331dc0ae25b75e101745a83eea9",
+  "physical_hardware_tested": false
+}

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GBRUNCH Toolbox
+Comment=Prepare Googlebook and collect laptop diagnostics
+Exec=/usr/local/bin/gbrunch-toolbox
+Icon=computer
+Terminal=false
+Categories=System;

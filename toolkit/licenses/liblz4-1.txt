@@ -1,0 +1,126 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: lz4
+Source: https://github.com/lz4/lz4
+
+Files: *
+Copyright: 2011-2020, Yann Collet
+License: GPL-2+
+
+Files: lib/*
+Copyright: 2011-2023, Yann Collet
+License: BSD-2-clause
+
+Files: Makefile
+ Makefile.inc
+Copyright: 2011-2023, Yann Collet
+License: BSD-2-clause
+
+Files: contrib/djgpp/*
+Copyright: 2014, lpsantil
+License: BSD-2-clause
+
+Files: contrib/djgpp/Makefile
+Copyright: 2015, Louis P. Santillan <lpsantil@gmail.com>
+License: BSD-2-clause
+
+Files: contrib/gen_manual/Makefile
+Copyright: 2016-2024, Przemyslaw Skibinski
+License: BSD-2-clause
+
+Files: examples/bench_functions.c
+Copyright: Kyle Harper
+License: GPL-2+
+
+Files: examples/blockStreaming_doubleBuffer.c
+ examples/blockStreaming_lineByLine.c
+Copyright: Takayuki Matsuoka
+License: BSD-2-clause
+
+Files: examples/simple_buffer.c
+Copyright: Kyle Harper
+License: BSD-2-clause
+
+Files: lib/lz4file.c
+ lib/lz4file.h
+Copyright: 2022, Xiaomi Inc.
+License: BSD-2-clause
+
+Files: programs/Makefile
+ programs/bench.c
+ programs/bench.h
+ programs/lorem.c
+ programs/lorem.h
+ programs/lz4cli.c
+ programs/lz4conf.h
+ programs/lz4io.c
+ programs/lz4io.h
+ programs/threadpool.c
+ programs/threadpool.h
+ programs/timefn.c
+ programs/timefn.h
+ programs/util.c
+Copyright: 2011-2024, Yann Collet
+License: GPL-2+
+
+Files: programs/platform.h
+ programs/util.h
+Copyright: 2016-2023, Przemyslaw Skibinski, Yann Collet
+License: GPL-2+
+
+Files: tests/Makefile
+ tests/checkFrame.c
+ tests/checkTag.c
+ tests/datagen.c
+ tests/datagen.h
+ tests/datagencli.c
+ tests/frametest.c
+ tests/fullbench.c
+ tests/fuzzer.c
+ tests/loremOut.c
+ tests/loremOut.h
+Copyright: 2011-2024, Yann Collet
+License: GPL-2+
+
+Files: tests/abiTest.c
+ tests/roundTripTest.c
+Copyright: 2016-2020, Yann Collet, Facebook, Inc.
+License: BSD-2-clause or GPL-2+
+
+Files: tests/test-lz4-speed.py
+Copyright: 2016-2020, Przemyslaw Skibinski, Yann Collet, Facebook, Inc.
+License: BSD-2-clause
+
+Files: debian/*
+Copyright: 2013 - 2025 Nobuhiro Iwamatsu <iwamatsu@debian.org>
+License: GPL-2+
+
+License: BSD-2-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are 
+ met:
+ .
+ * Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+ * Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
+ THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS
+ BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
+ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: GPL-2+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; version 2 dated June, 1991, or (at
+ your option) any later version.
+ .
+ On Debian systems, the complete text of version 2 of the GNU General
+ Public License can be found in '/usr/share/common-licenses/GPL-2'.

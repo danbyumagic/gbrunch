@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "relative_backing_survives_parent_directory_relocation": true,
+  "logical_image_bytes_unchanged": true,
+  "scope": "Disposable dummy QCOW2; same rebase operation as final local builder"
+}

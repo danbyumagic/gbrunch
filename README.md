@@ -1,0 +1,116 @@
+# GBRUNCH
+
+Experimental Googlebook OS compatibility tools for Intel UEFI laptops, starting with one HP Envy x360. GBRUNCH builds a private local bootable image from an **official Lenovo Googlebook recovery**, preserving Google's original system partitions and placing compatibility changes in separate partitions and a locally assembled vendor view.
+
+**Googlebook OS reached the home screen on one HP Envy x360 15-fe1xxx with a Core Ultra 7 155U.** The owner reported that the V6 graphics/color/performance changes improved the desktop substantially, and that Wi-Fi worked after V7. This is a successful experiment on one laptop, not a general hardware-support claim. Other laptops are welcome as research targets.
+
+Googlebook OS is proprietary. **This repository contains no Google recovery image, original Google kernel/module/ramdisk, derived Google vendor/policy image, account data, or raw device logs.** Download recovery directly from Google and build locally. Do not upload generated recovery-derived images here.
+
+## Status
+
+| Component | Evidence / current limit |
+| --- | --- |
+| External Googlebook desktop | Physically booted on the one HP described below; graphics improvement and Wi-Fi success reported by its owner |
+| Official recovery import | Full pinned Lenovo recovery downloaded, hashed, inspected and assembled locally |
+| Linux toolbox | Debian 13 / XFCE, browser, terminal, NetworkManager, hardware reports and persistent logs; UEFI desktop demonstrated in QEMU |
+| Same-drive Googlebook trial | Production copy/readback and GPT rollback tested in QEMU; cold UEFI handoff reached the original Google kernel; complete Android boot in this new layout not physically confirmed |
+| Internal dual boot | Production installer tested against dummy Windows/system contents in QEMU; preserves existing partition bytes and boot priority; physical internal Android boot not confirmed |
+| Automatic Google updates | Not implemented or validated |
+| Other laptops | Untested; current Android boot path includes an HP/QEMU hardware gate |
+| Audio, Bluetooth, camera, sensors, sleep, media acceleration | Some Linux diagnostic evidence exists; full Android functionality is not established |
+
+The toolbox storage setup source now accepts **a dedicated USB drive or USB SSD of 64 GB or larger**, including a 240 GB SSD. The previously built v0.2 ISO has an upper-size check that must be patched for larger drives; see [the quick-start guide](docs/QUICKSTART.md). Capacity alone does not establish hardware support.
+
+## How it works
+
+```mermaid
+flowchart TD
+    A[Official Lenovo Ruby recovery downloaded from Google] --> B[Verify pinned ZIP and raw image hashes]
+    B --> C[Keep original recovery read-only]
+    C --> D[Private local QCOW2 compatibility view]
+    E[Independent GBRUNCH boot and compatibility files] --> D
+    F[Cuttlefish software KeyMint and Gatekeeper] --> D
+    G[Intel firmware and local vendor service/policy changes] --> D
+    D --> H[Verified read-only source]
+    H --> I[Trial partitions on toolbox USB or USB SSD]
+    H --> J[Optional install into existing internal free space]
+    I --> K[UEFI and GRUB start original Google kernel and matching modules]
+    J --> K
+    K --> L[Google Android desktop with compatibility environment]
+```
+
+1. The builder imports the pinned Lenovo **Ruby** recovery, build **16452207 / CL3B.260622.271.R1**, from Google's official infrastructure. It checks the ZIP and extracted image hashes and retains those originals.
+2. A sparse local QCOW2 view references that unchanged recovery using a relative backing path. The compatibility assembly adds independent boot/compatibility/vendor/log partitions. Google's original non-EFI partitions remain backed by the original recovery; the boot environment uses locally assembled files and a derived vendor view.
+3. GNU GRUB starts Google's original x86-64 Android kernel and matching modules. The compatibility init/boot configuration replaces or masks hardware services that expect the original Lenovo board, supplies software security services and applies the scoped vendor/SELinux changes needed by this port.
+4. On the HP, the stock Xe kernel driver and Google's Intel graphics userspace are retained. Later fixes addressed permissions, desktop color settings, scaling and logging overhead. Wi-Fi needed matching Intel firmware/PNVM and regulatory data. This is more than changing a single graphics driver.
+5. Google system/super bytes are preserved. Vendor and policy changes are assembled locally into the compatibility view. Preserving the original system does **not** make stock AVB trust, hardware-backed security or OTA updates work automatically. The experiment boots in an unlocked/orange state and uses software security; Android userdata is currently unencrypted.
+
+The Linux toolbox is a separate OS for building, diagnosing and installing. It does not emulate Googlebook during normal bare-metal use. QEMU is used for build-tool execution and controlled tests.
+
+## Getting started
+
+Use a dedicated **64 GB or larger USB drive/USB SSD**. Flashing the toolbox erases that drive. If reusing your working Googlebook SSD, save needed data/logs first; that installation will be replaced.
+
+See [Quick start](docs/QUICKSTART.md), [Mac instructions](toolkit/START-HERE-MAC.md), and [Linux/Windows instructions](toolkit/START-HERE-LINUX-WINDOWS.md).
+
+The workflow is:
+
+1. Write the Linux toolbox ISO in raw/DD mode and boot it in UEFI mode.
+2. Set up its persistent storage and reboot into Linux.
+3. Connect to the internet and select **Prepare official recovery**.
+4. Select **Prepare USB Googlebook trial**, review the disk identity and confirmation token, then reboot into **Try Googlebook OS**.
+5. Return to Linux to collect logs if it fails. Internal installation is an optional later step after a successful external trial.
+
+The trial creates fresh **16 GiB Android userdata** alongside a **24 GiB Linux workspace**. It does not automatically use the rest of a larger SSD for Android data. Repeated trial overwrite and a compatibility rollback interface are not implemented.
+
+Internal installation requires an existing sufficiently large unallocated region, standard supported GPT/512-byte-sector geometry and unencrypted Windows partitions. The installer never shrinks NTFS. Its default userdata is **32 GiB**; budget roughly **60 GB unallocated** and review the calculated plan. Back up Windows before changing its disk layout. No automatic update/uninstall workflow is provided yet.
+
+## The tested laptop
+
+| Item | Observed hardware |
+| --- | --- |
+| Model | HP Envy x360 2-in-1 Laptop 15-fe1xxx, board 8C4F |
+| CPU | Intel Core Ultra 7 155U / Meteor Lake |
+| GPU | Intel `8086:7d45`, HP subsystem `103c:8c4f` |
+| Wi-Fi | Intel `8086:7e40`, subsystem `8086:0094`; AX211 identified in logs |
+| Bluetooth | Intel USB `8087:0033` |
+| Display | EDID preferred **1920×1080 at 60 Hz, 16:9**; do not infer 16:10 from marketing descriptions |
+| Input | SYNA32EF touchpad and ELAN2513 touchscreen/stylus |
+| Webcam | Quanta USB `0408:5465` |
+
+Do not assume another HP configuration contains the same devices. See [the physical-results research log](HP-RESULTS.md) and [the technical report](REPORT.md). These are chronological documents: earlier failures and limitations remain for context; current status is summarized above.
+
+## Build and source organization
+
+- [toolkit/](toolkit/): live desktop, storage setup, trial deployment, ISO build recipes and licenses.
+- [tools/](tools/): local recovery import, compatibility assembly, vendor/policy helpers, installers, diagnostics and research tests.
+- [patches/](patches/): experimental QEMU instruction support used during x86 research; not needed for normal HP bare-metal execution.
+- [validation/](validation/): selected non-private test summaries, source commit references and toolbox screenshot.
+- [BUILD.md](BUILD.md): historical research build notes; [toolkit/BUILD.md](toolkit/BUILD.md): current Linux ISO build recipe.
+
+For the toolbox build, fetch pinned redistributable dependencies with `python3 tools/fetch_toolbox_assets.py` and follow `toolkit/BUILD.md`. Google recovery is not required to build the Linux ISO.
+
+The research scripts retain development-environment paths and staged dependencies. They are published for review and collaboration, not presented as a universal one-command source bootstrap. The local toolbox workflow is the intended user-facing path. Debian package versions are recorded, but the ISO is not yet byte-reproducible from a frozen snapshot.
+
+## Collaboration and debugging
+
+We want to support more Intel laptops, but need hardware evidence. See [CONTRIBUTING.md](CONTRIBUTING.md). Start with an external trial; collect exact PCI/USB/subsystem IDs, boot stage, build version, kernel/logcat and graphics/radio failures. Reaching the logo alone does not identify a graphics problem.
+
+The Linux toolbox provides a terminal and browser for your preferred debugging tools or AI service. No account, API key or AI credential is bundled. Review logs before sharing them; hardware IDs, network information and account details can appear in diagnostic output. **Do not submit full recovery images or Android userdata.**
+
+Priority work includes portable test runners, broader hardware profiles without removing disk safeguards, live physical-toolbox testing, Android audio/suspend/media support, repeatable compatibility updates/rollback and a safe uninstall path.
+
+## Credits and licensing
+
+This work depends on earlier projects and upstream components:
+
+- **[skylartaylor/gbos-vm](https://github.com/skylartaylor/gbos-vm)**: the direct architectural starting point—preserve Google's system partitions while grafting hardware-compatible vendor components and software security. Its MIT `erofs_metadata.py` is included with its copyright/license. GBRUNCH adapts the approach to x86-64 and the HP hardware; gbos-vm's ARM Mica/Apple Silicon/QEMU target is distinct.
+- **[sebanc/brunch](https://github.com/sebanc/brunch)**: independent compatibility/boot layer and generic-PC recovery architecture. GBRUNCH is a separate experimental Android/Googlebook implementation, not Brunch's ChromeOS ROOTC implementation.
+- **[DangerousAndroid/AluminiumOS](https://github.com/DangerousAndroid/AluminiumOS)**: related Googlebook research reference.
+- **Android / AOSP / Cuttlefish**: software KeyMint, Gatekeeper and other open-source Android components.
+- **Linux, Debian, GNU GRUB, BusyBox, QEMU, EROFS tools, e2fsprogs, SELinux/libsepol, mtools and util-linux**: kernel, live environment, build, filesystem, policy and boot tools.
+- **Intel/linux-firmware and wireless-regdb**: hardware firmware/regulatory data, retaining their own redistribution terms.
+
+Inspected upstream commits are in [validation/source-commits.json](validation/source-commits.json). Detailed notices are in [toolkit/SOURCES-AND-CREDITS.md](toolkit/SOURCES-AND-CREDITS.md) and [toolkit/licenses/](toolkit/licenses/).
+
+Original GBRUNCH source and documentation are MIT-licensed; upstream files retain their own licenses. **Open-source compatibility tools do not make Googlebook OS open source.** This project is independent and is not affiliated with or endorsed by Google, Lenovo, HP or the upstream projects.

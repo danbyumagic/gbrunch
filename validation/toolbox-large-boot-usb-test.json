@@ -1,0 +1,27 @@
+[
+  {
+    "bytes": 64000000000,
+    "accepted": true,
+    "workspace_bytes": 25769803776,
+    "reserved_tail": 37162713600
+  },
+  {
+    "bytes": 240057409536,
+    "accepted": true,
+    "workspace_bytes": 25769803776,
+    "reserved_tail": 213220123136
+  },
+  {
+    "bytes": 1000000000000,
+    "accepted": true,
+    "workspace_bytes": 25769803776,
+    "reserved_tail": 973162713600
+  },
+  {
+    "bytes": 32000000000,
+    "refused": true
+  },
+  {
+    "occupied_slot_refused": true
+  }
+]

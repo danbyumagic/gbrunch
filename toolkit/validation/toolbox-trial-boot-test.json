@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "uefi_toolbox_menu_to_trial": true,
+  "original_google_kernel_handoff": true,
+  "scope": "QEMU dummy system payloads; fixture GRUB timeout/loglevel adjusted for observation; Android desktop not tested"
+}

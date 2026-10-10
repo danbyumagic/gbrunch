@@ -1,0 +1,32 @@
+{
+  "artifacts": [
+    {
+      "path": "/tmp/gbrunch-real-relocation/renamed-device/recovery/source.qcow2",
+      "inode": 277845,
+      "device": 33,
+      "bytes": 517144576,
+      "mtime_ns": 1791666471476898592
+    },
+    {
+      "path": "/workspace/gbrunch/downloads/ruby-recovery.raw",
+      "inode": 789738,
+      "device": 27,
+      "bytes": 19069493760,
+      "mtime_ns": 1791400520574527598
+    },
+    {
+      "path": "/tmp/gbrunch-real-relocation/renamed-device/recovery/source.qcow2.manifest.json",
+      "inode": 277847,
+      "device": 33,
+      "bytes": 2380,
+      "mtime_ns": 1791666472001754479
+    }
+  ],
+  "image_sha256": "c3143c9d8025d48aa963ca1d9ddf6b21386e409b018588038e8bfc69e6d47a04",
+  "manifest_sha256": "22a014363bc7027b3a8b22d083eb90a1692a89a09c7ee90c0c2490264592d5a5",
+  "virtual_bytes": 19786646016,
+  "passed": true,
+  "real_official_recovery_verified_after_cache_relocation": true,
+  "real_view_logical_bytes_unchanged": true,
+  "scope": "Local private V7 QCOW2 clone rebased relatively; original downloads/view retained unchanged"
+}

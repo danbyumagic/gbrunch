@@ -1,0 +1,8 @@
+{
+  "syntax_checks": {
+    "python": 114,
+    "shell": 16
+  },
+  "known_secret_patterns_found": false,
+  "private_recovery_and_device_logs_excluded": true
+}
