@@ -6,6 +6,7 @@ p.add_argument('--ruby',required=True,type=pathlib.Path)
 p.add_argument('--donor',required=True,type=pathlib.Path)
 p.add_argument('--fstab',required=True,type=pathlib.Path)
 p.add_argument('--compat-init',required=True,type=pathlib.Path,help='Project-owned compatibility init.rc, not a vendor image')
+p.add_argument('--with-system-heap',action='store_true',help='Include matching donor DMA heap module and dependency entry')
 p.add_argument('--output',required=True,type=pathlib.Path)
 a=p.parse_args()
 if a.output.exists(): p.error('Output already exists; choose a fresh path')
@@ -18,6 +19,10 @@ def append(name,body):
     block+=b'\0'*(-len(block)%4);block+=body;block+=b'\0'*(-len(block)%4)
     data.extend(block)
 mods=['virtio_pci_legacy_dev','virtio_pci_modern_dev','virtio_pci','virtio_dma_buf','virtio-gpu','virtio_input','virtio_console']
+if a.with_system_heap:
+    mods.append('system_heap')
+    append('lib/modules/system_heap.ko',(a.donor/'vendor_dlkm-files/lib/modules/system_heap.ko').read_bytes())
+    append('lib/modules/modules.dep',(a.donor/'vendor_boot/fragment-0-platform-files/lib/modules/modules.dep').read_bytes()+b'\n/lib/modules/system_heap.ko:\n')
 append('lib/modules/modules.load',(''.join(m+'.ko\n' for m in mods)).encode())
 append('first_stage_ramdisk/fstab.android-desktop',a.fstab.read_bytes())
 # Explicit VM init entry removes physical Intel module loading. Original system

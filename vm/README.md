@@ -43,3 +43,28 @@ The physical HP profile also attempted to load Ruby Intel modules into the Cuttl
 The private Google-derived ramdisks, recovery views and raw transcripts remain in the Work environment, outside this repository.
 
 The separate compatibility-partition init profile was subsequently tested. Android read `/oem/init.gbrunch-vm.rc` successfully. Delayed serial logcat captured the graphics abort: ANGLE's Vulkan initialization fails, `eglInitialize` returns `EGL_NOT_INITIALIZED`, and SurfaceFlinger aborts with `no suitable EGLConfig found`. This establishes a userspace graphics failure in this profile; it does not establish that other startup dependencies are resolved. The next experiment must supply a compatible virtual/software rendering stack rather than reuse the Intel Vulkan path.
+
+## Software-rendering progress
+
+The local Cuttlefish donor contains `vulkan.pastel.so` (SwiftShader) in `com.google.cf.vulkan.apex`. Its extracted SHA-256 is `5232e4829d8e6bba2d81cc0ff64d227504601090d2ac7b9fa105536e38c680a3`.
+
+The experiments established these separate results:
+
+| Local profile | Observed result |
+| --- | --- |
+| Ruby Intel Vulkan with virtual GPU | ANGLE Vulkan initialization failed; SurfaceFlinger aborted. |
+| Software Vulkan via runtime file overlay | Required a scoped SELinux mount permission; library loading still failed. |
+| Software Vulkan in a private vendor view | ANGLE initialized SwiftShader and detected 1280×800, then native texture import failed. |
+| Software Vulkan plus Cuttlefish allocator/mapper/gralloc and matching DMA heap | During 115 seconds, neither the preceding EGL-config failure nor texture-import abort appeared. Googlebook's boot animation started; Zygote was preloading classes. A desktop was not verified. |
+
+The allocation experiment selected `ro.hardware.vulkan=pastel`, included the matching donor `system_heap.ko`, and added its dependency entry to the ramdisk. `prepare_android_initrd.py --with-system-heap` reproduces that ramdisk component. It still requires a separately prepared compatibility/vendor view.
+
+`experiments/prepare_pastel_overlay.py` preserves the **unsuccessful runtime-overlay approach** for research and reproduces its local assembly. It is not the working allocation profile or a VM installer. It validates the retained donor Vulkan APEX hash and verifies image file readback. Original input images are never overwritten.
+
+`run_local_probe.py --capture-frame` attempts a QMP screenshot and saves failures separately. The initial minimal development QEMU lacked the `screendump` command; a display-enabled build is required for visual validation. A boot-animation log alone is not evidence of a visible desktop.
+
+`graft_vendor_files.py` provides the local EROFS graft step used by these experiments. It copies the input to a new output, imports original inode permissions/ownership/labels, preserves the compact root's metadata, checks the filesystem, and verifies each replacement by hash readback. A JSON mapping names each vendor path and local replacement file; a new path can specify an existing `metadata_from` path. Generated vendor images are private local outputs. The virtual disk's partition allocation must also be rebuilt when the result grows beyond the old partition size; this helper does not perform that step.
+
+The graft helper was verified against the retained private vendor using a real build-property replacement and filesystem/readback checks. The wider graphics conversion remains a research assembly, not a complete public VM builder.
+
+The display-enabled development QEMU was rebuilt with `--enable-pixman --enable-vnc`. QMP screenshot capture then worked, but an early 1280×800 frame was black. That longer test ended with SIGKILL in the memory-constrained Work environment and is inconclusive for desktop startup. The runner accepts `--memory-mb` to control guest memory independently of the runtime limit.
