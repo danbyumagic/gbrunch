@@ -7,6 +7,7 @@ p.add_argument('--donor',required=True,type=pathlib.Path)
 p.add_argument('--fstab',required=True,type=pathlib.Path)
 p.add_argument('--compat-init',required=True,type=pathlib.Path,help='Project-owned compatibility init.rc, not a vendor image')
 p.add_argument('--with-system-heap',action='store_true',help='Include matching donor DMA heap module and dependency entry')
+p.add_argument('--skip-shader-prewarm',action='store_true',help='Experimental: disable optional SurfaceFlinger shader prewarming in the owned VM init sidecar')
 p.add_argument('--output',required=True,type=pathlib.Path)
 a=p.parse_args()
 if a.output.exists(): p.error('Output already exists; choose a fresh path')
@@ -29,6 +30,8 @@ append('first_stage_ramdisk/fstab.android-desktop',a.fstab.read_bytes())
 # and vendor imports remain; this is not a complete virtual vendor conversion.
 rc=a.compat_init.read_text()
 rc='\n'.join(line for line in rc.splitlines() if not line.strip().startswith('insmod '))+'\n'
+if a.skip_shader_prewarm:
+    rc+='\non init\n    setprop service.sf.prime_shader_cache 0\n'
 a.output.parent.mkdir(parents=True,exist_ok=True)
 rc_output=a.output.with_suffix('.vm-init.rc')
 if rc_output.exists(): p.error('VM init sidecar already exists')
