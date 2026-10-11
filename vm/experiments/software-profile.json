@@ -1,0 +1,65 @@
+{
+  "status": "rendered boot animation; no verified desktop or Windows run",
+  "donor_build": "16373615",
+  "graphics_components": [
+    {
+      "component": "libminigbm_gralloc.so",
+      "donor_apex": "com.google.cf.gralloc.apex",
+      "sha256": "ee1454c896c4020a065b0ff1dab630a5bc0f6ebe9266881bfb18abd1d24f0b30"
+    },
+    {
+      "component": "libminigbm_gralloc4_utils.so",
+      "donor_apex": "com.google.cf.gralloc.apex",
+      "sha256": "e91b3537610d9c67026c6f88173fdfb114d6c434864793d0e79ff8fdb18700ed"
+    },
+    {
+      "component": "android.hardware.graphics.allocator-V3-ndk.so",
+      "donor_apex": "com.google.cf.gralloc.apex",
+      "sha256": "c880f7883e0701385c361e5d2797584bc958362255ca4a8b7b7a0b3c961de3d6"
+    },
+    {
+      "component": "android.hardware.graphics.common-V7-ndk.so",
+      "donor_apex": "com.google.cf.gralloc.apex",
+      "sha256": "5bac950deaa63c07f12778bd54755b540079371c42d6467d0d387b37fdff37df"
+    },
+    {
+      "component": "android.hardware.graphics.allocator-service.minigbm",
+      "donor_apex": "com.google.cf.gralloc.apex",
+      "sha256": "487a6cad3ef76f1e0364ad975747d5ff3fcf5a6dee66c5e43fe549ce2b5a8f41"
+    },
+    {
+      "component": "android.hardware.composer.hwc3-service.drm",
+      "donor_apex": "com.android.hardware.graphics.composer.drm_hwcomposer.apex",
+      "sha256": "a614b6d3994bb074f938b166f37d9c2c6ce99ba0ca7e349a038d9150f0df1964"
+    },
+    {
+      "component": "drm_hwcomposer_atom_reporter.so",
+      "donor_apex": "com.android.hardware.graphics.composer.drm_hwcomposer.apex",
+      "sha256": "d7129fff87ec9ddfb553671af410a0ce4ab27e53b31fd32d20afc0d535ce90fd"
+    },
+    {
+      "component": "vulkan.pastel.so",
+      "donor_apex": "com.google.cf.vulkan.apex",
+      "sha256": "5232e4829d8e6bba2d81cc0ff64d227504601090d2ac7b9fa105536e38c680a3"
+    }
+  ],
+  "owned_init_setting": {
+    "service.sf.prime_shader_cache": "0"
+  },
+  "local_policy_allow": [
+    {
+      "source": "bootanim",
+      "target": "bootanim",
+      "class": "process",
+      "permission": "execmem"
+    }
+  ],
+  "matching_kernel": "6.12.74-android16-6-g3ec022196c4e-ab15076761",
+  "required_early_module": "system_heap.ko (matching donor ABI with modules.dep entry)",
+  "vendor_properties": {
+    "ro.hardware.vulkan": "pastel",
+    "debug.renderengine.vulkan": "false"
+  },
+  "storage": "Original Ruby downloads preserved; private derived vendor and independent compatibility partition; QCOW2 trial writes disposable",
+  "contains_google_images": false
+}
