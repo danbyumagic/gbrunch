@@ -4,7 +4,7 @@
 
 Use a dedicated USB drive or USB SSD of at least 64 GB. The write erases that USB; preserve the working Googlebook SSD separately.
 
-Download the ISO from https://filebin.net/gbrunch-toolbox-v03-818c5e37d9a2/gbrunch-toolbox-v0.3-amd64.iso
+Download [Toolbox v0.3 ISO from MEGA](https://mega.nz/file/ni4hQR5b#mFKxoG_fPg1_PVpdaOECnvsIBhdFIavgJJb4lKcCs1I) and save it as `gbrunch-toolbox-v0.3-amd64.iso`.
 
 SHA256: 818c5e37d9a2ba104cb700d0275055347a690bc1c9ab2a0e1e84286ba0955924
 

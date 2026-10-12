@@ -12,12 +12,7 @@ The first public preview uses the v0.3 ISO. Its SHA256 is:
 818c5e37d9a2ba104cb700d0275055347a690bc1c9ab2a0e1e84286ba0955924
 ```
 
-The ISO is currently on a verified temporary Filebin mirror. GitHub release-asset upload was rejected by the connected credential; it is not hosted as a GitHub binary asset. The compatibility dependency archive is stored in this repository under dist/. The mirror may expire; do not substitute an unverified image. Download the ISO with:
-
-```sh
-curl -fsSL -c /tmp/gbrunch-cookies https://filebin.net/gbrunch-toolbox-v03-818c5e37d9a2 -o /dev/null
-curl -fL --retry 3 -b /tmp/gbrunch-cookies https://filebin.net/gbrunch-toolbox-v03-818c5e37d9a2/gbrunch-toolbox-v0.3-amd64.iso -o gbrunch-toolbox-v0.3-amd64.iso
-```
+Download [Toolbox v0.3 ISO from MEGA](https://mega.nz/file/ni4hQR5b#mFKxoG_fPg1_PVpdaOECnvsIBhdFIavgJJb4lKcCs1I) and save it as `gbrunch-toolbox-v0.3-amd64.iso`. Verify the checksum below before writing it. The compatibility dependency archive is stored in this repository under `dist/`.
 
 Mac checksum:
 

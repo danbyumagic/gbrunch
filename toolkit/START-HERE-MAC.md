@@ -4,11 +4,10 @@
 
 Use a spare **64 GB or larger USB drive/USB SSD**. Writing the ISO erases that USB. If you have a working Googlebook SSD, keep it as a fallback unless you deliberately choose to erase and reuse it. Your Mac needs about 1 GB free for this ISO; the large recovery download/build happens on the USB in Linux.
 
+Download [Toolbox v0.3 ISO from MEGA](https://mega.nz/file/ni4hQR5b#mFKxoG_fPg1_PVpdaOECnvsIBhdFIavgJJb4lKcCs1I) in your browser and save it in Downloads as `gbrunch-toolbox-v0.3-amd64.iso`. Then verify it:
+
 ```sh
 cd ~/Downloads
-URL=https://filebin.net/gbrunch-toolbox-v03-818c5e37d9a2
-curl -fsSL -c /tmp/gbrunch-cookies "$URL" -o /dev/null
-curl -fL --retry 3 -b /tmp/gbrunch-cookies "$URL/gbrunch-toolbox-v0.3-amd64.iso" -o gbrunch-toolbox-v0.3-amd64.iso
 echo '818c5e37d9a2ba104cb700d0275055347a690bc1c9ab2a0e1e84286ba0955924  gbrunch-toolbox-v0.3-amd64.iso' | shasum -a 256 -c -
 diskutil list external physical
 ```

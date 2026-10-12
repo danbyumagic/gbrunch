@@ -34,6 +34,8 @@ AMD Ryzen graphics support is being investigated; it is not available yet. See [
 
 Toolbox **v0.3** includes persistent USB storage, the local recovery builder and an explicit experimental boot entry for other laptops. It requires a dedicated USB drive or USB SSD of **64 GB or larger**.
 
+**Download:** [Toolbox v0.3 ISO (MEGA)](https://mega.nz/file/ni4hQR5b#mFKxoG_fPg1_PVpdaOECnvsIBhdFIavgJJb4lKcCs1I) · [Setup instructions](docs/QUICKSTART.md)
+
 ## How it works
 
 ```mermaid
