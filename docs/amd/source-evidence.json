@@ -1,0 +1,21 @@
+{
+  "commit": "3938c8d97142d5cf31543aa96f864a2cf832dda0",
+  "source": "https://android.googlesource.com/kernel/common/+/3938c8d97142d5cf31543aa96f864a2cf832dda0",
+  "files": {
+    "drivers/gpu/drm/amd/amdgpu/Kconfig": {
+      "sha256": "c29a5f77660df670e134018fb3ab895004598ad3ce6ecbc4b25ff5725202da46"
+    },
+    "drivers/gpu/drm/amd/display/Kconfig": {
+      "sha256": "93851d6eef6aafaf095c1aaa7366befb075f356d8c479b1238ba9fc788b39907"
+    },
+    "drivers/gpu/drm/sysfb/Kconfig": {
+      "sha256": "5c71446e64a89fd78232d5a4552700a8ca0996d250e45dd998fbaf5132f73d36"
+    },
+    "bazel/constants.scl": {
+      "sha256": "8fdd4673152978b45ae0349277892b546d1ce9225831a80ebe7e1c7d9b7b73af"
+    },
+    "drivers/iommu/Kconfig": {
+      "sha256": "bf96350c05e4f2240320256f70576815e5e6138697ceb008945380d9d0138fcb"
+    }
+  }
+}

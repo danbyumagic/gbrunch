@@ -18,6 +18,8 @@ Googlebook OS is proprietary. **This repository contains no Google recovery imag
 
 ## Status
 
+AMD Ryzen graphics support is being investigated; it is not available yet. See [AMD investigation and blockers](AMD.md). The Intel boot path is unchanged.
+
 | Component | Evidence / current limit |
 | --- | --- |
 | External Googlebook desktop | Booted on the HP described below; improved graphics/responsiveness and working Wi-Fi confirmed in physical testing |
