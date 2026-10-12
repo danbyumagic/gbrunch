@@ -16,6 +16,38 @@
     },
     "drivers/iommu/Kconfig": {
       "sha256": "bf96350c05e4f2240320256f70576815e5e6138697ceb008945380d9d0138fcb"
+    },
+    "arch/x86/Kconfig": {
+      "sha256": "3950d8564245a31188838927b9e6c09de0482f641477cbb3a0030303279c6681"
+    },
+    "drivers/pinctrl/Makefile": {
+      "sha256": "ce2b5dfea5f93eeedb25352e0b9480f8d83e49d5e6cbff066a25bc9d3401edfb"
+    },
+    "drivers/pinctrl/Kconfig": {
+      "sha256": "4df830b97c41cb14f1d812cdab8592a862fa496974761e348e22038bd29aae46"
+    },
+    "drivers/platform/x86/amd/pmc/Kconfig": {
+      "sha256": "1fe34bdb25a808f1d8004ca2cb98e93ea7aad06f6f8ef8ce8359a4f8229f9340"
+    },
+    "drivers/clk/x86/Makefile": {
+      "sha256": "bfd5af0ac4cae1b287ae02fff9953e638fbeeff6efa4708eaee5d069af18f7f9"
+    },
+    "drivers/gpu/drm/display/Makefile": {
+      "sha256": "d42d2350bcc4db422dc2b371c54da7a431b7b636ed9cc999b10a25bcea97e671"
+    },
+    "drivers/gpu/drm/display/Kconfig": {
+      "sha256": "32c189ba77c5aac082e4f1a0e2f40a0c9fc89c5da849f287b396e88ead2d1f2b"
+    },
+    "drivers/gpu/drm/amd/amdgpu/Makefile": {
+      "sha256": "f769b95cb05deafa1addfb8bbbf04df91590d5e24c11edc8db5ee06017527f5b"
+    },
+    "drivers/gpu/drm/amd/display/Makefile": {
+      "sha256": "8f598d115c315d4cf6664ceb96e3f28cb780350f49485615d244ce96ff8af472"
     }
+  },
+  "source_archive": {
+    "url": "https://android.googlesource.com/kernel/common/+archive/3938c8d97142d5cf31543aa96f864a2cf832dda0.tar.gz",
+    "sha256": "d9cdb66cf162a1c965d7d10fc52e0189b8be219f43b1e305ce40004e0395b1e9",
+    "retained_locally": true
   }
 }
