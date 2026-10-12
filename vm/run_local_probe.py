@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Run a prepared Googlebook VM experiment using file-only disposable storage."""
-import argparse, json, pathlib, subprocess, threading, time, socket
+import argparse, json, pathlib, subprocess, threading, time, socket, os, shutil
 p=argparse.ArgumentParser(description=__doc__)
 for name in ['qemu','kernel','initrd','disk','cmdline-file','work']:
     p.add_argument('--'+name,required=True,type=pathlib.Path)
 p.add_argument('--capture-frame',action='store_true',help='Save a QMP screenshot near the end of the probe')
+p.add_argument('--scratch-directory',type=pathlib.Path,help='Disk-backed directory for QEMU temporary writes; avoid RAM tmpfs')
+p.add_argument('--minimum-scratch-mb',type=int,default=1024)
 p.add_argument('--bios',type=pathlib.Path)
 p.add_argument('--qemu-data',type=pathlib.Path)
 p.add_argument('--seconds',type=int,default=180)
@@ -18,6 +20,13 @@ for name in ['qemu','kernel','initrd','disk','cmdline_file']:
     if not value.is_file() or str(value).startswith('/dev/'):
         p.error(f'{name} must be a regular local file')
     setattr(a,name,value)
+if a.minimum_scratch_mb<1:p.error('Minimum scratch space must be positive')
+scratch=(a.scratch_directory or pathlib.Path(os.environ.get('TMPDIR','/var/tmp'))).resolve()
+if str(scratch).startswith('/dev/'):p.error('Use a normal scratch directory')
+scratch.mkdir(parents=True,exist_ok=True)
+free=shutil.disk_usage(scratch).free
+if free<a.minimum_scratch_mb*1048576:p.error(f'Insufficient snapshot scratch space: {free//1048576} MB free in {scratch}')
+environment=dict(os.environ,TMPDIR=str(scratch))
 a.work.mkdir(parents=True,exist_ok=True)
 log=a.work/'serial.log'
 if log.exists(): p.error('Use a fresh work directory to preserve existing logs')
@@ -30,7 +39,7 @@ if a.capture_frame:
     cmd+=['-qmp',f'unix:{qmp_path},server=on,wait=off']
 started=time.monotonic()
 with log.open('wb') as f:
-    proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=f,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=f,stderr=subprocess.STDOUT,env=environment)
     def diagnose():
         try:
             proc.stdin.write(('\r'+a.diagnostic_command+'\r').encode());proc.stdin.flush()
@@ -58,6 +67,6 @@ with log.open('wb') as f:
         try: code=proc.wait(timeout=5)
         except subprocess.TimeoutExpired: proc.kill();code=proc.wait()
     finally: timer.cancel();capture_timer.cancel();capture_timer.join(timeout=6);proc.stdin.close()
-result={'command':cmd,'exit_code':code,'timeout':timeout,'duration_seconds':round(time.monotonic()-started,2),'storage':'disposable QEMU snapshot; no host devices','desktop_success':'not inferred from process exit status','log':str(log)}
+result={'command':cmd,'exit_code':code,'timeout':timeout,'duration_seconds':round(time.monotonic()-started,2),'storage':'disposable QEMU snapshot; no host devices','scratch_directory':str(scratch),'scratch_free_bytes_before':free,'scratch_free_bytes_after':shutil.disk_usage(scratch).free,'desktop_success':'not inferred from process exit status','log':str(log)}
 (a.work/'result.json').write_text(json.dumps(result,indent=2)+'\n')
 print(f'Experiment ended; inspect {log}. This does not establish desktop success.')
