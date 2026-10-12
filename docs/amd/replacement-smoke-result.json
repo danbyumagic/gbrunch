@@ -1,0 +1,33 @@
+{
+  "status": "kernel-module-smoke-passed-not-AMD-graphics-ready",
+  "kernel_release": "6.18.21-gbrunch-amd",
+  "kernel_sha256": "44f0ad91cfc82625ff43e73c678090659e1fc0ecd49a48b848755de81bebd467",
+  "source_commit": "3938c8d97142d5cf31543aa96f864a2cf832dda0",
+  "qemu_acceleration": "TCG",
+  "scope": "kernel boot and module admission only; no AMD hardware/Android rendering",
+  "modules_loaded": [
+    "amdxcp.ko",
+    "gpu-sched.ko",
+    "drm_display_helper.ko",
+    "i2c-algo-bit.ko",
+    "drm_exec.ko",
+    "drm_ttm_helper.ko",
+    "wmi.ko",
+    "video.ko",
+    "drm_suballoc_helper.ko",
+    "drm_buddy.ko",
+    "hwmon.ko",
+    "drm_panel_backlight_quirks.ko",
+    "amdgpu.ko"
+  ],
+  "passed": true,
+  "physical_amd_tested": false,
+  "android_boot_tested": false,
+  "firmware_packaged": false,
+  "android_graphics_built": false,
+  "stock_kernel_import_audit": {
+    "imports": 937,
+    "absent_stock_export_names": 131
+  },
+  "original_module_filename_coverage_gaps": 470
+}

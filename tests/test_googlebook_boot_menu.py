@@ -13,6 +13,16 @@ class MenuTests(unittest.TestCase):
   self.assertIn('"$board_product" = "8C4F"',cfg)
   experimental=cfg.split("menuentry 'Experimental boot",1)[1].split("menuentry 'UEFI",1)[0]
   self.assertIn('gbrunch_boot',experimental);self.assertNotIn('smbios',experimental)
+ def test_amd_entry_is_opt_in_and_uses_separate_guarded_assets(self):
+  self.assertNotIn("Experimental AMD",render(CMD))
+  cfg=render(CMD,amd=True)
+  self.assertEqual(command_line(cfg),CMD)
+  self.assertIn("set default=0",cfg)
+  self.assertIn("menuentry 'Experimental AMD (untested)'",cfg)
+  self.assertIn("/EFI/GBRUNCH-AMD/profile-ready",cfg)
+  self.assertIn("linux /EFI/GBRUNCH-AMD/kernel",cfg)
+  self.assertIn("androidboot.init_rc=/oem/init.gbrunch-amd.rc",cfg)
+  self.assertIn("drm.debug=0x1e",cfg)
  def test_installer_uuid_remapping(self):
   cfg=render(CMD).replace('12345678-1234-1234-1234-123456789abc','87654321-4321-4321-4321-cba987654321')
   self.assertIn('androidboot.boot_part_uuid=87654321-4321-4321-4321-cba987654321',command_line(cfg))

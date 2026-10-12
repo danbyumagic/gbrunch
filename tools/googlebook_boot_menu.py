@@ -13,14 +13,14 @@ def command_line(config):
         raise ValueError('Missing boot partition UUID')
     return cmd
 
-def render(cmd,template=False):
+def render(cmd,template=False,amd=False):
     if not cmd or any(c in cmd for c in '\n\r\x00\'";$`{}\\#&|<>'):
         raise ValueError('Unsafe GRUB command line')
     if not template and 'androidboot.init_rc=/oem/init.gbrunch.rc' not in cmd:
         raise ValueError('Missing GBRUNCH init configuration')
     # Both entries share the exact kernel, ramdisk and verbose logger settings.
     # This changes hardware admission only, never partition/source verification.
-    return '''set timeout=10
+    config = '''set timeout=10
 set default=0
 serial --unit=0 --speed=115200
 terminal_output console serial
@@ -62,13 +62,48 @@ menuentry 'Experimental boot - untested hardware (verbose logs)' {
 }
 menuentry 'UEFI firmware settings' { fwsetup }
 '''
+    if amd:
+        config = config.replace("menuentry 'UEFI firmware settings' { fwsetup }", render_amd_entry(cmd) + "menuentry 'UEFI firmware settings' { fwsetup }")
+    return config
+
+
+def render_amd_entry(cmd):
+    # This entry is opt-in. The default Intel renderer and asset paths stay unchanged.
+    debug = re.sub(r'(?:^| )drm\.debug=\S+', '', cmd)
+    debug = debug.replace('androidboot.init_rc=/oem/init.gbrunch.rc',
+                          'androidboot.init_rc=/oem/init.gbrunch-amd.rc')
+    debug += ' drm.debug=0x1e loglevel=8 ignore_loglevel printk.time=1 log_buf_len=8M amdgpu.dyndbg=+p'
+    return '''menuentry 'Experimental AMD (untested)' {
+ if [ -f /EFI/GBRUNCH-AMD/kernel ]; then
+  if [ -f /EFI/GBRUNCH-AMD/initrd.gz ]; then
+   if [ -f /EFI/GBRUNCH-AMD/profile-ready ]; then
+    echo 'Experimental AMD profile: kernel and Android graphics remain hardware-untested.'
+    echo 'Verbose Android logs are saved to the independent GBLOG partition.'
+    linux /EFI/GBRUNCH-AMD/kernel '''+debug+'''
+    initrd /EFI/GBRUNCH-AMD/initrd.gz
+   else
+    echo 'AMD profile is incomplete. Collect/build its matching vendor and module assets first.'
+    sleep 10
+   fi
+  else
+   echo 'AMD initramfs is missing. The Intel entry remains available.'
+   sleep 10
+  fi
+ else
+  echo 'AMD kernel assets are not installed. This entry does not use the Intel kernel.'
+  sleep 10
+ fi
+}
+'''
+
 
 def main():
     p=argparse.ArgumentParser(description='Add an experimental entry to an existing owned GBRUNCH EFI grub.cfg; no system image changes.')
     p.add_argument('--config',required=True,type=pathlib.Path)
+    p.add_argument('--amd',action='store_true',help='Opt in to a guarded entry for separately prepared AMD assets')
     a=p.parse_args();path=a.config
     if path.is_symlink() or not path.is_file():raise ValueError('Config must be a regular file')
-    original=path.read_text();updated=render(command_line(original))
+    original=path.read_text();updated=render(command_line(original),amd=a.amd)
     if updated==original:print('Experimental entry already present. No changes.');return
     backup=path.with_name(path.name+'.before-experimental')
     if backup.exists():raise ValueError('Backup exists; preserve and inspect it before retrying: '+str(backup))
