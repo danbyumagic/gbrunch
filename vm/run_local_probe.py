@@ -4,6 +4,9 @@ import argparse, json, pathlib, subprocess, threading, time, socket, os, shutil
 p=argparse.ArgumentParser(description=__doc__)
 for name in ['qemu','kernel','initrd','disk','cmdline-file','work']:
     p.add_argument('--'+name,required=True,type=pathlib.Path)
+p.add_argument('--retain-writes',action='store_true',help='Keep writes in a new private overlay in scratch storage')
+p.add_argument('--qemu-img',type=pathlib.Path,help='Required for --retain-writes')
+p.add_argument('--virtual-input',action='store_true',help='Attach candidate virtio keyboard and absolute tablet')
 p.add_argument('--capture-frame',action='store_true',help='Save a QMP screenshot near the end of the probe')
 p.add_argument('--scratch-directory',type=pathlib.Path,help='Disk-backed directory for QEMU temporary writes; avoid RAM tmpfs')
 p.add_argument('--minimum-scratch-mb',type=int,default=1024)
@@ -27,10 +30,17 @@ scratch.mkdir(parents=True,exist_ok=True)
 free=shutil.disk_usage(scratch).free
 if free<a.minimum_scratch_mb*1048576:p.error(f'Insufficient snapshot scratch space: {free//1048576} MB free in {scratch}')
 environment=dict(os.environ,TMPDIR=str(scratch))
+if a.retain_writes and (not a.qemu_img or not a.qemu_img.resolve().is_file()):p.error('Retaining writes requires a regular qemu-img executable')
 a.work.mkdir(parents=True,exist_ok=True)
 log=a.work/'serial.log'
 if log.exists(): p.error('Use a fresh work directory to preserve existing logs')
-cmd=[str(a.qemu),'-machine','q35','-accel','tcg','-cpu','max','-m',str(a.memory_mb),'-smp','2','-vga','none','-device','virtio-gpu-pci,romfile=','-display','none','-serial','stdio','-monitor','none','-nic','none','-no-reboot','-kernel',str(a.kernel),'-initrd',str(a.initrd),'-append',a.cmdline_file.read_text().strip(),'-drive',f'if=none,id=os,format=qcow2,snapshot=on,file={str(a.disk).replace(",",",,")}','-device','nvme,drive=os,serial=GBRUNCHVM,addr=03.0']
+disk=a.disk
+if a.retain_writes:
+    disk=scratch/(a.work.name+'-writes.qcow2')
+    if disk.exists():p.error('Retained overlay exists; use a fresh work-directory name')
+    subprocess.run([str(a.qemu_img.resolve()),'create','-f','qcow2','-F','qcow2','-b',str(a.disk),str(disk)],check=True,capture_output=True)
+cmd=[str(a.qemu),'-machine','q35','-accel','tcg','-cpu','max','-m',str(a.memory_mb),'-smp','2','-vga','none','-device','virtio-gpu-pci,romfile=','-display','none','-serial','stdio','-monitor','none','-nic','none','-no-reboot','-kernel',str(a.kernel),'-initrd',str(a.initrd),'-append',a.cmdline_file.read_text().strip(),'-drive',f'if=none,id=os,format=qcow2,{"" if a.retain_writes else "snapshot=on,"}file={str(disk).replace(",",",,")}','-device','nvme,drive=os,serial=GBRUNCHVM,addr=03.0']
+if a.virtual_input:cmd+=['-device','virtio-keyboard-pci','-device','virtio-tablet-pci']
 if a.bios: cmd+=['-bios',str(a.bios.resolve())]
 if a.qemu_data: cmd+=['-L',str(a.qemu_data.resolve())]
 qmp_path=(a.work/'qmp.sock').resolve()
@@ -67,6 +77,6 @@ with log.open('wb') as f:
         try: code=proc.wait(timeout=5)
         except subprocess.TimeoutExpired: proc.kill();code=proc.wait()
     finally: timer.cancel();capture_timer.cancel();capture_timer.join(timeout=6);proc.stdin.close()
-result={'command':cmd,'exit_code':code,'timeout':timeout,'duration_seconds':round(time.monotonic()-started,2),'storage':'disposable QEMU snapshot; no host devices','scratch_directory':str(scratch),'scratch_free_bytes_before':free,'scratch_free_bytes_after':shutil.disk_usage(scratch).free,'desktop_success':'not inferred from process exit status','log':str(log)}
+result={'command':cmd,'exit_code':code,'timeout':timeout,'duration_seconds':round(time.monotonic()-started,2),'storage':('new private retained overlay; no host devices' if a.retain_writes else 'disposable QEMU snapshot; no host devices'),'write_overlay':str(disk) if a.retain_writes else None,'scratch_directory':str(scratch),'scratch_free_bytes_before':free,'scratch_free_bytes_after':shutil.disk_usage(scratch).free,'desktop_success':'not inferred from process exit status','log':str(log)}
 (a.work/'result.json').write_text(json.dumps(result,indent=2)+'\n')
 print(f'Experiment ended; inspect {log}. This does not establish desktop success.')

@@ -1,6 +1,10 @@
 # Windows x86_64 VM research
 
-This is an early QEMU experiment, not a downloadable Googlebook VM or a working Windows launcher.
+This is an experimental QEMU project, not a ready-to-use Googlebook VM download or a validated Windows package.
+
+**Verified milestone:** the Googlebook “Hi there” setup screen rendered on the Linux/QEMU Work host using software graphics. Setup completion, the desktop and Windows/WHPX execution remain unverified. Cold startup is slow under TCG CPU emulation.
+
+![Googlebook welcome screen captured in Linux QEMU](docs/qemu-welcome.png)
 
 The intended workflow downloads the official Lenovo Ruby recovery locally, preserves Google's system partitions, and assembles a virtual-device compatibility environment using Android Cuttlefish. No Google recovery or assembled Googlebook image is distributed here.
 
@@ -100,3 +104,15 @@ Direct inspection of the official inactive-slot filesystem found **49 AICore pre
 The software-vendor helper was subsequently exercised against the retained local compatibility vendor and pinned donor. Its complete extraction/hash, policy graft, EROFS check and replacement readback stages passed; original vendor input SHA-256 remained unchanged. The output is a locally generated graphics vendor, not a standalone VM image.
 
 The minimal/no-AICore-profile ten-minute run completed without a host OOM kill or exhausted scratch storage. The normal preoptimization copy exited successfully and `sys.cppreopt` became `finished`; ART app compilation continued and `sys.boot_completed` remained unset. The final display still showed the boot animation, so setup and desktop remain unverified. A disk-only progress overlay was captured with CPUs paused, checked with `qemu-img check`, and retained privately for subsequent cached boot trials. This is disk state, not a RAM/suspend snapshot.
+
+The cached trial subsequently started Setup Wizard and System UI, but both aborted in HWUI `VulkanManager::initialize()` on `queueProps[i].queueFamilyProperties.queueCount < kRequestedQueueCount`. This is a distinct app-renderer compatibility failure, not evidence that setup was visible. A new profile selects `debug.hwui.renderer=skiagl` before app startup, routing HWUI through OpenGL/ANGLE over the existing software Vulkan stack. `prepare_android_initrd.py --software-hwui` reproduces that owned-init setting; direct Vulkan apps remain unverified. The current trial retains enforcing and the original system images.
+
+## Verified setup-screen profile
+
+The cached software-rendering profile used `debug.hwui.renderer=skiagl` to avoid the app HWUI Vulkan queue-count assertion. With matching donor ZRAM modules, virtual input devices and an emulation timeout multiplier, a ten-minute run captured the actual **Hi there** screen. The input service recognized the QEMU virtio keyboard and tablet; clicking through setup has not been validated. Bluetooth still reports hardware initialization failures. Networking is disabled. Local AI model preloading is omitted, and local AI, audio, camera and direct Vulkan apps remain unverified.
+
+Relevant helper options are `--with-system-heap --with-zram --skip-shader-prewarm --software-hwui --skip-ai-preloads --timeout-multiplier 10`. Timeout scaling is an experiment for slow TCG, not proof that all startup delays are solved and not a default recommendation for hardware acceleration. The matching `zsmalloc.ko` and `zram.ko` loaded successfully; the guest subsequently reported about 3.25 GiB of swap. The owned compatibility partition must still receive the emitted init/preoptimization sidecars.
+
+`run_local_probe.py --virtual-input` adds the candidate keyboard/tablet. `--retain-writes --qemu-img /path/to/qemu-img` keeps writes in a **new separate overlay in scratch storage**, so another trial can use that overlay as its local base. The original input is not opened for guest writes. Existing retained overlays are never overwritten; use a fresh work-directory name. Keep backing files available and do not share guest userdata. A retained overlay is disk state, not a saved RAM session.
+
+The shorter five-minute cached retry still showed the boot logo. This establishes a rendered welcome-screen milestone, not a repeatable fast desktop boot or a finished Windows installer. The immediate remaining work is interactive setup validation, virtual networking, a complete local preparation pipeline, and tests on a real Windows host with WHPX.

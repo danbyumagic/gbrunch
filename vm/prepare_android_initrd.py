@@ -9,8 +9,12 @@ p.add_argument('--compat-init',required=True,type=pathlib.Path,help='Project-own
 p.add_argument('--with-system-heap',action='store_true',help='Include matching donor DMA heap module and dependency entry')
 p.add_argument('--skip-shader-prewarm',action='store_true',help='Experimental: disable optional SurfaceFlinger shader prewarming in the owned VM init sidecar')
 p.add_argument('--skip-ai-preloads',action='store_true',help='Experimental: omit the optional AICore model copy; local AI remains unverified')
+p.add_argument('--software-hwui',action='store_true',help='Experimental: select OpenGL/ANGLE for app HWUI with the software Vulkan donor')
+p.add_argument('--with-zram',action='store_true',help='Include matching donor ZRAM and allocator modules')
+p.add_argument('--timeout-multiplier',type=int,default=1,help='Experimental timeout scale for slow CPU emulation (1–20)')
 p.add_argument('--output',required=True,type=pathlib.Path)
 a=p.parse_args()
+if not 1<=a.timeout_multiplier<=20:p.error('Timeout multiplier must be 1–20')
 if a.output.exists(): p.error('Output already exists; choose a fresh path')
 data=bytearray((a.donor/'vendor_boot/fragment-0-platform.cpio').read_bytes())
 data.extend((a.ruby/'init_boot_a/ramdisk.cpio').read_bytes())
@@ -25,12 +29,24 @@ if a.with_system_heap:
     mods.append('system_heap')
     append('lib/modules/system_heap.ko',(a.donor/'vendor_dlkm-files/lib/modules/system_heap.ko').read_bytes())
     append('lib/modules/modules.dep',(a.donor/'vendor_boot/fragment-0-platform-files/lib/modules/modules.dep').read_bytes()+b'\n/lib/modules/system_heap.ko:\n')
+if a.with_zram:
+    for name in ('zsmalloc','zram'):
+        mods.append(name)
+        append('lib/modules/'+name+'.ko',(a.donor/'system_dlkm-files/lib/modules'/ (name+'.ko')).read_bytes())
+    dep=(a.donor/'vendor_boot/fragment-0-platform-files/lib/modules/modules.dep').read_bytes()
+    if a.with_system_heap:dep+=b'\n/lib/modules/system_heap.ko:\n'
+    dep+=b'\n/lib/modules/zsmalloc.ko:\n/lib/modules/zram.ko: /lib/modules/zsmalloc.ko\n'
+    append('lib/modules/modules.dep',dep)
 append('lib/modules/modules.load',(''.join(m+'.ko\n' for m in mods)).encode())
 append('first_stage_ramdisk/fstab.android-desktop',a.fstab.read_bytes())
 # Explicit VM init entry removes physical Intel module loading. Original system
 # and vendor imports remain; this is not a complete virtual vendor conversion.
 rc=a.compat_init.read_text()
 rc='\n'.join(line for line in rc.splitlines() if not line.strip().startswith('insmod '))+'\n'
+if a.timeout_multiplier!=1:
+    rc+=f'\non early-init\n    setprop ro.hw_timeout_multiplier {a.timeout_multiplier}\n'
+if a.software_hwui:
+    rc+='\non init\n    setprop debug.hwui.renderer skiagl\n'
 if a.skip_shader_prewarm:
     rc+='\non init\n    setprop service.sf.prime_shader_cache 0\n'
 a.output.parent.mkdir(parents=True,exist_ok=True)
