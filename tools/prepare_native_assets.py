@@ -16,7 +16,7 @@ def main():
                         (R/'build/compat-probe/compat.ext4','compat.ext4'),
                         (R/'build/external-lab-assets/esp-template.fat','esp-template.fat'),
                         (R/'build/vendor-view/fstab.android-desktop','fstab.android-desktop')]:put(source,name)
-    for n in ['googlebook_boot_menu.py','assemble_native_android.py','assemble_external_lab.py','inspect_recovery.py']:put(R/'tools'/n,n)
+    for n in ['googlebook_boot_menu.py','assemble_native_android.py','assemble_external_lab.py','inspect_recovery.py','prepare_recovery_profile.py']:put(R/'tools'/n,n)
     xe=json.loads((R/'build/xe-probe/manifest.json').read_text())
     records={v['file']:v for v in json.loads((R/'evidence/module-inventory.json').read_text())}
     modules=[]

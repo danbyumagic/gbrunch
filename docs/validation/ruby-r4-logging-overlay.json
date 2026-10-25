@@ -1,0 +1,12 @@
+{
+  "scope": "local-only independent compatibility logging overlay; not HP-tested or a single-partition installer",
+  "build": 16658739,
+  "logger_sha256": "9d91c0bb432ae6ca82632589d58cb4e338f882d8a05266fe46d40eaf49b1f7bc",
+  "compat_sha256": "3ba11b8c8a52e90169c45049572bed48aca5a56a949bf077297f7f505a9cda0f",
+  "compat_fsck_passed": true,
+  "selinux_label_preserved": true,
+  "qcow2_readback_verified": true,
+  "original_google_images_modified": false,
+  "physical_hp_tested": false,
+  "linux_terminal_fixed": false
+}

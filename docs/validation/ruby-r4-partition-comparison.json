@@ -1,0 +1,66 @@
+{
+  "old_build": 16452207,
+  "new_build": 16658739,
+  "logical_partitions": [
+    {
+      "name": "system_a",
+      "old_bytes": 1133674496,
+      "new_bytes": 1133674496,
+      "old_offset": 747634688,
+      "new_offset": 747634688,
+      "old_sha256": "4ebc0e69314aea8cdc4eb97351716c7ebc6dc1d3a0ed66e17025f32d9af1e487",
+      "new_sha256": "c3fac5488aa24f30443756345c08280cd492d8e36ee98de238c929a25017f4b1",
+      "identical_bytes": false
+    },
+    {
+      "name": "system_ext_a",
+      "old_bytes": 252346368,
+      "new_bytes": 252346368,
+      "old_offset": 8649703424,
+      "new_offset": 8649703424,
+      "old_sha256": "da7fd503976de920eb556b56fcc05f6ff4a5af8a1ce8996f7c1591e0711fe0f1",
+      "new_sha256": "dc3f228d2479ae3d979564bd7a02956399300187a67ac19519223911b7108b34",
+      "identical_bytes": false
+    },
+    {
+      "name": "product_a",
+      "old_bytes": 1971519488,
+      "new_bytes": 1971519488,
+      "old_offset": 6677331968,
+      "new_offset": 6677331968,
+      "old_sha256": "c5c6e4fb94c3c673862254069df83910a700f91d50302f294c759530d59020d2",
+      "new_sha256": "ddf9d7105c4424c727ed53176d89b5a9895d3f59e2699ab5854bb3d1641211c1",
+      "identical_bytes": false
+    },
+    {
+      "name": "vendor_a",
+      "old_bytes": 387108864,
+      "new_bytes": 387108864,
+      "old_offset": 6289358848,
+      "new_offset": 6289358848,
+      "old_sha256": "38e01d05d337ef0bca57df6e3e43faf89ba3571c9f8626e0b02c1552ea9cbcc4",
+      "new_sha256": "d6c021c6495a4c60bd6ce55c98c5cd32a3b9651543b0d7360945cb41b94358e1",
+      "identical_bytes": false
+    },
+    {
+      "name": "system_dlkm_a",
+      "old_bytes": 9232384,
+      "new_bytes": 9232384,
+      "old_offset": 8902410240,
+      "new_offset": 8902410240,
+      "old_sha256": "942fbd4c6b9af84cf6971a21fb36e237b08eb227656650cdc0a552bc403f1f34",
+      "new_sha256": "192c879380c268143a348f12e22285d5acfad8038098d9989b9aa70189984bf5",
+      "identical_bytes": false
+    },
+    {
+      "name": "vendor_dlkm_a",
+      "old_bytes": 18096128,
+      "new_bytes": 18096128,
+      "old_offset": 8911847424,
+      "new_offset": 8911847424,
+      "old_sha256": "6f4089f008aa33d407c2a36bb38c307e478b4fa494d9ff34bc9e4ff44cb6a1cf",
+      "new_sha256": "865870f12c35fdf500d6c1eb0ec4ca7cbe97ab7f254a739bd3929e9334313925",
+      "identical_bytes": false
+    }
+  ]
+}

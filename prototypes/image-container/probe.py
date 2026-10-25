@@ -44,6 +44,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ['work','kernel','busybox','mkfs','qemu','qemu-data','bios']:
         p.add_argument('--'+name,type=pathlib.Path,required=True)
+    p.add_argument('--recovery-profile',type=pathlib.Path,help='Optional pinned profile; kernel hash must match it')
     p.add_argument('--debugfs',type=pathlib.Path,help='Optional read-only fixture integrity readback')
     p.add_argument('--modules',type=pathlib.Path,nargs='*',default=[])
     a=p.parse_args()
@@ -51,6 +52,15 @@ def main():
         value=getattr(a,key).absolute()
         if str(value).startswith('/dev/'):raise ValueError('Device paths are forbidden')
         setattr(a,key,value)
+    selected_profile=None
+    if a.recovery_profile:
+        import sys
+        sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[2]/'tools'))
+        from prepare_recovery_profile import load_profile
+        selected_profile=load_profile(a.recovery_profile)
+        with a.kernel.open('rb') as f:kernel_hash=hashlib.file_digest(f,'sha256').hexdigest()
+        if kernel_hash!=selected_profile.get('kernel_sha256'):
+            raise ValueError('Kernel differs from the selected recovery profile')
     if a.work.exists():raise ValueError('Use a new work directory')
     a.work.mkdir(parents=True)
     def fs(name,size,contents):
@@ -91,6 +101,8 @@ def main():
     text=(a.work/'missing-image.log').read_text(errors='replace')
     missing_refused=negative.returncode==0 and 'CONTAINER_FAIL:image_missing' in text and 'CONTAINER_PASS:' not in text
     report={'scope':'kernel + ext4 host + nested GPT + read-only system fixture + persistent writable data fixture; no Android, EFI or physical laptop validation','kernel_sha256':hashlib.file_digest(a.kernel.open('rb'),'sha256').hexdigest(),'outer_partitions':1,'nested_partitions':2,'physical_devices_attached':False,'results':results,'missing_image_refused':missing_refused,'passed':len(results)==2 and all(r['passed'] for r in results) and missing_refused}
+    if selected_profile:
+        report['recovery_profile']={k:selected_profile[k] for k in ['device','build','version']}
     if a.debugfs and report['passed']:
         from readback import verify
         report['readback']=verify(a.work,a.debugfs)

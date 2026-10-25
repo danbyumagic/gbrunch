@@ -2,6 +2,8 @@
 
 The existing installer expands the recovery's GPT partitions onto the destination disk. This prototype investigates keeping those partitions inside one regular disk-image file instead. It does not migrate or change existing installations.
 
+Current development uses [Ruby R4](recoveries/RUBY-R4.md), selected explicitly through its pinned recovery profile. The published v0.3 ISO remains on its original base.
+
 ## Proposed layout
 
 ```text

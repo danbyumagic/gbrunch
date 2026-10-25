@@ -1,0 +1,107 @@
+{
+  "scope": "exact kernel and first-stage module byte compatibility only; not vendor HAL/policy or runtime certification",
+  "build": 16658739,
+  "version": "CL3B.260622.276.R4",
+  "kernel_sha256": "7816c5d5b3500093e597b7362ecab103d5a32141b100d3eb7a8b33221fce7f41",
+  "expected_asset_kernel_sha256": "7816c5d5b3500093e597b7362ecab103d5a32141b100d3eb7a8b33221fce7f41",
+  "kernel_matches": true,
+  "logical_source_offsets": {
+    "system_dlkm_a": 8902410240,
+    "vendor_dlkm_a": 8911847424,
+    "vendor_a": 6289358848
+  },
+  "modules": [
+    {
+      "file": "drm_exec.ko",
+      "expected_sha256": "8f68e65503524980f084b2bc8e58f21d0fa752eab9c6beec116bdfabf9e504a6",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "8f68e65503524980f084b2bc8e58f21d0fa752eab9c6beec116bdfabf9e504a6"
+    },
+    {
+      "file": "drm_gpuvm.ko",
+      "expected_sha256": "467d40b04c4be350758147d9de1018bf9c5dc7e08f53c8801835ad62c25f971e",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "467d40b04c4be350758147d9de1018bf9c5dc7e08f53c8801835ad62c25f971e"
+    },
+    {
+      "file": "drm_ttm_helper.ko",
+      "expected_sha256": "0fabec54594b0b09efc15c3b7d4d31089d08cd95a8893c8b383033b84eeac66a",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "0fabec54594b0b09efc15c3b7d4d31089d08cd95a8893c8b383033b84eeac66a"
+    },
+    {
+      "file": "gpu-sched.ko",
+      "expected_sha256": "90b891930a0a1125d1e6dc32f0fa2acc74f221e0d42b5b9da52f9e142aea0f64",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "90b891930a0a1125d1e6dc32f0fa2acc74f221e0d42b5b9da52f9e142aea0f64"
+    },
+    {
+      "file": "drm_suballoc_helper.ko",
+      "expected_sha256": "6dae25aa61f814350d7cd2e14f25c3ca715a1139ccbc9c78c850d6e0ee6fc3e3",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "6dae25aa61f814350d7cd2e14f25c3ca715a1139ccbc9c78c850d6e0ee6fc3e3"
+    },
+    {
+      "file": "drm_buddy.ko",
+      "expected_sha256": "11d0bbf7b7b8cfc458b548a1ed8c02bd450c0f89618f87e91e109eb32290d08b",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "11d0bbf7b7b8cfc458b548a1ed8c02bd450c0f89618f87e91e109eb32290d08b"
+    },
+    {
+      "file": "drm_gpusvm_helper.ko",
+      "expected_sha256": "bdd2d90b3926103f76dab24a4fd5ca0e196b5d8764b8e2c631927e4a3f0833fa",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "bdd2d90b3926103f76dab24a4fd5ca0e196b5d8764b8e2c631927e4a3f0833fa"
+    },
+    {
+      "file": "intel-vsec.ko",
+      "expected_sha256": "743ea5dc46b04fae965e5ed0fa6cf5a734bd7bd4756422cc8ee1d1fc08badb7f",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "743ea5dc46b04fae965e5ed0fa6cf5a734bd7bd4756422cc8ee1d1fc08badb7f"
+    },
+    {
+      "file": "drm_display_helper.ko",
+      "expected_sha256": "1422f5d17649aef6f3b5829b4ce966dd15c4f1db70a151a039b316414c129b36",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "1422f5d17649aef6f3b5829b4ce966dd15c4f1db70a151a039b316414c129b36"
+    },
+    {
+      "file": "wmi.ko",
+      "expected_sha256": "85230e533505f2d323177e99fe153f0ef653a77a9965eaf2b17d016ae67e1f09",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "85230e533505f2d323177e99fe153f0ef653a77a9965eaf2b17d016ae67e1f09"
+    },
+    {
+      "file": "video.ko",
+      "expected_sha256": "c0ca9f39d425550a1ae3b56fd09c2eca6823e935a034e5ddd8f274b07404f2f4",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "c0ca9f39d425550a1ae3b56fd09c2eca6823e935a034e5ddd8f274b07404f2f4"
+    },
+    {
+      "file": "i2c-algo-bit.ko",
+      "expected_sha256": "f0764029b26895387509d3ba0a796dcbeb90ddd69d9caed638bd8b397b64e9b3",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "f0764029b26895387509d3ba0a796dcbeb90ddd69d9caed638bd8b397b64e9b3"
+    },
+    {
+      "file": "xe.ko",
+      "expected_sha256": "21f708ce10ed62ec6e5881be46044c81c11176abb5a9e691b2c12523b5e50de7",
+      "matches": true,
+      "source": "vendor_dlkm_a",
+      "actual_sha256": "21f708ce10ed62ec6e5881be46044c81c11176abb5a9e691b2c12523b5e50de7"
+    }
+  ],
+  "existing_kernel_module_assets_match": true
+}

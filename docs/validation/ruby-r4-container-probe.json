@@ -1,0 +1,32 @@
+{
+  "scope": "kernel + ext4 host + nested GPT + read-only system fixture + persistent writable data fixture; no Android, EFI or physical laptop validation",
+  "kernel_sha256": "7816c5d5b3500093e597b7362ecab103d5a32141b100d3eb7a8b33221fce7f41",
+  "outer_partitions": 1,
+  "nested_partitions": 2,
+  "physical_devices_attached": false,
+  "results": [
+    {
+      "boot": 1,
+      "passed": true,
+      "exit_code": 0
+    },
+    {
+      "boot": 2,
+      "passed": true,
+      "exit_code": 0
+    }
+  ],
+  "missing_image_refused": true,
+  "passed": true,
+  "recovery_profile": {
+    "device": "ruby",
+    "build": 16658739,
+    "version": "CL3B.260622.276.R4"
+  },
+  "readback": {
+    "outer_gpt_crc_verified": true,
+    "nested_gpt_crc_verified": true,
+    "system_partition_bytes_unchanged": true,
+    "system_sha256": "2c6ae9787c379d930dd047851eb1a9951e4060e65f213803b5ff9eee9e081b00"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "gbrunch-pinned-recovery-v1",
+  "device": "ruby",
+  "build": 16658739,
+  "version": "CL3B.260622.276.R4",
+  "url": "https://dl.google.com/device/recovery/ruby-user/16658739/recovery.zip",
+  "catalog_url": "https://dl.google.com/dl/edgedl/device/recovery/production_recovery.json",
+  "catalog_updated": "2026-10-22",
+  "zip_sha256": "6519c70efcc568fc22f9209f4b32d9522549cce5a966888d41932bb5d4ccdbdd",
+  "zip_bytes": 7816433350,
+  "raw_sha256": "805de2e7251b2ec0c2089af0fe8f0547c386a58e8c5e24614d506697456837db",
+  "raw_bytes": 19069493760,
+  "kernel_sha256": "7816c5d5b3500093e597b7362ecab103d5a32141b100d3eb7a8b33221fce7f41",
+  "kernel_release": "6.18.21-android17-5-g3938c8d97142-ab16302624",
+  "compatibility_status": "experimental; not physically tested on HP"
+}

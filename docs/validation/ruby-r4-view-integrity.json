@@ -1,0 +1,10 @@
+{
+  "build": 16658739,
+  "verification": "read-only UNIX NBD streaming comparison of every original super byte against the selected recovery",
+  "original_super_bytes": 12884901888,
+  "super_sha256": "487d0cdf21095c61a15dcc0a5cd91b92acbb78c6d43e86f94221bd2df895d6ec",
+  "entire_original_super_identical_in_logging_view": true,
+  "qcow2_container_checks_passed": true,
+  "physical_hp_boot_tested": false,
+  "full_android_boot_tested": false
+}

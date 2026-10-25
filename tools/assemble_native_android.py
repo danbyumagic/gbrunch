@@ -38,14 +38,15 @@ def original_boot_parts(blobs):
     return kernel,b''.join(fragments)+generic
 
 def recovery(a):
+    pin=getattr(a,'profile',None) or {'url':URL,'zip_sha256':ZIP_HASH,'raw_sha256':RAW_HASH}
     if a.recovery_raw:
         base=a.recovery_raw.resolve()
     else:
         z=a.recovery_zip.resolve() if a.recovery_zip else a.cache/'ruby-recovery.zip'
         if not z.exists():
-            part=z.with_suffix('.download');print('Downloading official recovery:',URL,flush=True)
-            urllib.request.urlretrieve(URL,part);part.rename(z)
-        if sha(z)!=ZIP_HASH:raise ValueError('Official ZIP hash mismatch')
+            part=z.with_suffix('.download');print('Downloading official recovery:',pin['url'],flush=True)
+            urllib.request.urlretrieve(pin['url'],part);part.rename(z)
+        if sha(z)!=pin['zip_sha256']:raise ValueError('Official ZIP hash mismatch')
         base=a.cache/'ruby-recovery.raw'
         if not base.exists():
             part=base.with_suffix('.extracting')
@@ -60,22 +61,30 @@ def recovery(a):
             part.rename(base)
     print('Verifying official raw recovery (~19 GB read)...',flush=True)
     assert base.is_file() and not str(base).startswith('/dev/')
-    if sha(base)!=RAW_HASH:raise ValueError('Official raw recovery hash mismatch')
+    if sha(base)!=pin['raw_sha256']:raise ValueError('Official raw recovery hash mismatch')
     return base
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     s=p.add_mutually_exclusive_group(required=True)
     s.add_argument('--download',action='store_true');s.add_argument('--recovery-zip',type=pathlib.Path);s.add_argument('--recovery-raw',type=pathlib.Path)
+    p.add_argument('--recovery-profile',type=pathlib.Path,help='Explicit experimental recovery profile; legacy defaults remain unchanged')
     p.add_argument('--output',type=pathlib.Path,required=True)
     p.add_argument('--cache',type=pathlib.Path,default=pathlib.Path('google-recovery-cache'))
     p.add_argument('--assets',type=pathlib.Path,default=pathlib.Path(__file__).resolve().parent)
     p.add_argument('--format',choices=['raw','qcow2'],default='raw')
-    a=p.parse_args();out=a.output.absolute();a.cache=a.cache.resolve();assets=a.assets.resolve()
+    a=p.parse_args()
+    a.profile=None
+    if a.recovery_profile:
+        from prepare_recovery_profile import load_profile
+        a.profile=load_profile(a.recovery_profile)
+    out=a.output.absolute();a.cache=a.cache.resolve();assets=a.assets.resolve()
     if out.exists() or out.is_symlink() or str(out).startswith('/dev/') or not out.parent.is_dir():p.error('Output must be a NEW regular file in an existing directory.')
     for t in ['qemu-system-x86_64','qemu-img','qemu-io','mcopy','mformat','lz4']:
         if not shutil.which(t):p.error('Missing program: '+t+' (macOS: brew install qemu mtools lz4)')
     manifest=json.loads((assets/'native-assets.json').read_text())
+    if a.profile and manifest['google_kernel_sha256']!=a.profile.get('kernel_sha256'):
+        raise ValueError('Selected recovery requires regenerated kernel/module assets; do not force old assets')
     for n,h in manifest['files'].items():
         if sha(assets/n)!=h:raise ValueError('Asset hash mismatch: '+n)
     a.cache.mkdir(parents=True,exist_ok=True);base=recovery(a)
@@ -169,7 +178,8 @@ def main():
             run('qemu-img','rebase','-u','-f','qcow2','-F','raw',
                 '-b',os.path.relpath(base,out.parent),out)
         for v in appended:v.pop('file')
-        report={'scope':'local experimental Android image; HP interface not yet tested','physical_boot_enabled':manifest['physical_boot_enabled'],'original_raw_sha256':RAW_HASH,
+        report={'scope':'local experimental Android image; HP interface not yet tested','physical_boot_enabled':manifest['physical_boot_enabled'],'original_raw_sha256':a.profile['raw_sha256'] if a.profile else RAW_HASH,
+                'recovery_profile':a.profile,'physical_tested_for_selected_recovery':False,
                 'system_preservation':'All original GPT records retained; EFI changed only in output; original super/system/vendor bytes untouched',
                 'vendor':result,'appended_partitions':appended,'cmdline':cmd,'format':a.format,
                 'userdata_encryption':'disabled for this experiment','output_sha256':sha(out),'distribution':'local use only; do not upload this image'}
