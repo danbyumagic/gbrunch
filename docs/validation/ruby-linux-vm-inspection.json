@@ -1,0 +1,27 @@
+{
+  "scope": "Static inspection of verified official Ruby recovery; no HP runtime diagnosis",
+  "recovery_build": 16452207,
+  "kernel_sha256": "7816c5d5b3500093e597b7362ecab103d5a32141b100d3eb7a8b33221fce7f41",
+  "kernel_config": {
+    "CONFIG_KVM": "y",
+    "CONFIG_KVM_INTEL": "y",
+    "CONFIG_PKVM_X86": "y",
+    "CONFIG_PKVM_INTEL": "y",
+    "CONFIG_VHOST_VSOCK": "y",
+    "CONFIG_VIRTIO_VSOCKETS": "m",
+    "CONFIG_TUN": "y",
+    "CONFIG_BLK_DEV_LOOP": "y",
+    "CONFIG_EXT4_FS": "y",
+    "CONFIG_FUSE_FS": "y"
+  },
+  "virtualization_apex": "com.google.android.virt.apex",
+  "runtime_apex": "com.android.virt",
+  "terminal_package": "com.android.virtualization.terminal",
+  "apex_sha256": "5fc6a794d41dd9e20442bac0dd79fa2c27e39f4e4c1dc77fbf6d732ddc98f025",
+  "terminal_apk_sha256": "33bedafd1baf1cbb0d02570681ff1171a740196a9f225d3a20c43ef3e047ab5a",
+  "vendor_advertises_vm": true,
+  "vendor_advertises_protected_vm": true,
+  "compat_cmdline_disables_protected_vm": true,
+  "runtime_property_values_verified": false,
+  "physical_terminal_failure_diagnosed": false
+}

@@ -95,6 +95,14 @@ for n in 01 02 03 04 05 06 07 08 09 10; do
         capture "$n-dumpsys-$service.txt" dumpsys -t 5 "$service"
     done
     if [ "$n" = 01 ] || [ "$n" = 10 ]; then
+        # AVF/Linux terminal evidence only: do not start VMs or change settings.
+        capture "$n-virtualization-hardware.txt" sh -c 'ls -l /dev/kvm /dev/vhost-vsock /dev/vsock; grep -E "^(flags|vendor_id|model name)" /proc/cpuinfo | head -n 3; cat /sys/module/kvm_intel/parameters/nested /sys/module/kvm/parameters/enable_virt_at_load'
+        capture "$n-virtualization-state.txt" sh -c 'getprop | grep -Ei "virtual|hypervisor|avf|ferro|linux|terminal"; ps -AZ | grep -Ei "virtual|crosvm|virtmgr|terminal|vm_shell"; cat /proc/mounts | grep -E "com.android.virt|/data/misc/apexdata"; ls -ldZ /apex/com.android.virt /data/misc/apexdata/com.android.virt'
+        capture "$n-virtualization-packages.txt" sh -c 'pm list packages -f | grep -Ei "terminal|virtual|ferro|linux"'
+        capture "$n-virtualization-service.txt" dumpsys -t 5 android.system.virtualizationservice
+        capture "$n-virtualization-info.txt" /apex/com.android.virt/bin/vm info
+        capture "$n-terminal-package.txt" dumpsys -t 5 package com.android.virtualization.terminal
+        capture "$n-virtualization-logcat.txt" sh -c 'logcat -b all -d -v threadtime | grep -Ei "virtualizationservice|VirtualMachine|crosvm|AVF|ferrochrome|debian|VmLauncher|LinuxTerminal|VmTerminalApp|DebianService|virtmgr|vmnic|kvm|pvmfw" | tail -c 524288'
         capture "$n-dumpsys-package.txt" dumpsys -t 5 package
         for package in com.android.settings com.google.android.desktop.setupwizard com.google.android.gms com.google.android.apps.nexuslauncher; do
             capture "$n-gfxinfo-$package.txt" dumpsys -t 5 gfxinfo "$package" framestats

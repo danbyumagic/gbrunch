@@ -34,6 +34,9 @@ esac
     assert 'LOGGER_COMPLETE' in status
     assert 'MOCK_KERNEL_AVC' in (run/'01-kernel-errors.txt').read_text()
     assert 'MOCK_TOP' in (run/'01-top.txt').read_text()
+    assert '01-virtualization-hardware.txt' in status
+    assert '01-virtualization-info.txt' in status
+    assert '01-terminal-package.txt' in status
     assert (run/'01-process-labels.txt').stat().st_size>0
     subprocess.run(['/bin/sh',str(p)],check=True,env=env,timeout=30)
     assert len(list((w/'logs').glob('run-*')))==2
