@@ -52,7 +52,7 @@ function New-InstallPlan {
     [pscustomobject][ordered]@{
         Schema='gbrunch-install-plan-v1'; CreatedUtc=[DateTime]::UtcNow.ToString('o')
         Status='PreviewOnly'; CanInstall=$false
-        Blocker='Full Android boot from the single-partition image and the Windows deployment engine are not yet validated.'
+        Blocker='Production image boot (including clean shutdown and UEFI) and the Windows deployment engine are not yet validated.'
         Disk=[pscustomobject]@{ Number=$Disk.Number; UniqueId=$Disk.UniqueId; Size=$Disk.Size; Model=$Disk.Model; BusType=$Disk.BusType; Connection=$(if ($Disk.BusType -eq 'USB') {'External USB'} else {'Internal/direct-attached; confirm physical drive'}) }
         Target=$matching[0]
         ErasesSelectedPartition=($Choice.Kind -eq 'ReplacePartition')

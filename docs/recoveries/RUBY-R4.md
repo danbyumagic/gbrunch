@@ -15,7 +15,7 @@ The new ZIP was downloaded from Google, matched the catalog's ZIP MD5, passed ZI
 - Streaming read-only NBD comparison verified all 12,884,901,888 original `super` bytes unchanged in the final logging view; both QCOW2 containers passed integrity checks.
 - A separate locally built compatibility overlay includes the expanded AVF/Linux terminal logger, with fsck, file-content, SELinux-label and virtual-disk readback checks.
 
-No full Android boot, Linux terminal fix, HP boot or one-partition Android migration is claimed. The assembled native view still uses the legacy inner partition layout; the new storage wrapper must still be integrated with Android first-stage init.
+The native assembly results above do not establish a Linux terminal fix or HP boot. A later [one-partition software-VM experiment](../ONE-PARTITION-VALIDATION.md) reached Android's welcome screen with persistent data, using a separate compatibility first stage and Cuttlefish kernel. Clean shutdown remains unresolved; no production migration is available.
 
 ## Explicit local assembly
 

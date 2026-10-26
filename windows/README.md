@@ -2,6 +2,8 @@
 
 The current repository does not contain a working Windows-native installer for the single-partition design. See [the architecture and remaining gates](../docs/SINGLE-PARTITION.md).
 
+The [one-partition Android VM test](../docs/ONE-PARTITION-VALIDATION.md) now reaches the welcome screen and preserves Android data across boot. Clean outer-filesystem shutdown failed, and Windows deployment/EFI remain unverified. This does not enable the Install button.
+
 ## Drive and partition selector
 
 `Open-Installer.cmd` opens the **experimental Windows preparation interface** using Windows PowerShell and the built-in WPF interface. It does not require another Linux installation or booting the toolbox ISO. Download this branch or clone the repository, open the `windows` folder and double-click `Open-Installer.cmd`. Alternatively:

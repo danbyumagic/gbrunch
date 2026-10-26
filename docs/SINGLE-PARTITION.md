@@ -4,6 +4,8 @@ The existing installer expands the recovery's GPT partitions onto the destinatio
 
 Current development uses [Ruby R4](recoveries/RUBY-R4.md), selected explicitly through its pinned recovery profile. The published v0.3 ISO remains on its original base.
 
+**Update:** [full Android image-boot validation](ONE-PARTITION-VALIDATION.md) reached the welcome screen with persistent Android data in the software-rendered QEMU profile. The outer filesystem was not left clean after shutdown, so production boot and Windows installation remain gated. This is separate from the earlier dummy-file storage probe below.
+
 ## Proposed layout
 
 ```text

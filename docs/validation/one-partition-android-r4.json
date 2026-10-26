@@ -1,0 +1,64 @@
+{
+  "schema": "gbrunch-one-partition-android-validation-v1",
+  "date": "2026-10-26",
+  "recovery": {
+    "device": "ruby",
+    "build": 16658739,
+    "version": "CL3B.260622.276.R4"
+  },
+  "scope": "File-only QEMU TCG experiment; kernel/initrd loaded directly, no EFI or Windows installer execution",
+  "layout": {
+    "outer_gpt_partitions": 1,
+    "outer_filesystem": "ext4",
+    "outer_filesystem_bytes": 51539607552,
+    "inner_image_bytes": 37367071232,
+    "image_file": "googlebook.img",
+    "nested_recovery_layout_retained": true
+  },
+  "virtual_storage": "Host-only extent-mapped NBD backing avoids duplicating recovery data. Guest sees an ordinary NVMe disk; Android does not use NBD. This backing format is not an installer artifact.",
+  "kernel_tests": {
+    "google_kernel_real_outer_mount_and_inner_loop_discovery": true,
+    "google_kernel_release": "6.18.21-android17-5-g3938c8d97142-ab16302624",
+    "android_graphical_boot_kernel": "Cuttlefish 6.12.74-android16-6-g3ec022196c4e-ab15076761 with matching modules",
+    "original_google_kernel_android_graphical_boot_tested": false
+  },
+  "passed": {
+    "android_second_stage": true,
+    "sys_boot_completed": true,
+    "welcome_screen_visually_verified": true,
+    "selinux_enforcing": true,
+    "android_data_read_write": true,
+    "android_data_marker_survived_second_boot": true,
+    "gblog_files_recovered_after_second_boot": true,
+    "embedded_vbmeta_signature_and_boot_hash_checks": true,
+    "read_only_verity_maps_for_all_six_original_logical_partitions": true,
+    "wrong_verity_root_refused_before_android": true,
+    "missing_image_refused": true
+  },
+  "preservation": {
+    "original_super_bytes": 12884901888,
+    "protected_super_overlay_write_blocks": 0,
+    "private_dirty_blocks": 11680,
+    "verification": "Immutable read-only backing plus inspection of every private overlay write mapping; not a new full byte-stream hash",
+    "source_read_only": true
+  },
+  "welcome_frame_sha256": "547337826b8b4d6c527d9590b4d6d4859e166369b0e8999421c8ca1b30ee6883",
+  "shutdown": {
+    "android_requested_poweroff_completed": true,
+    "outer_filesystem_structure_read_only_e2fsck_exit": 0,
+    "outer_filesystem_clean_state": false,
+    "gblog_unmount_permission_denial_observed": true,
+    "production_shutdown_passed": false
+  },
+  "not_validated": [
+    "Original Google kernel graphical Android image boot on HP",
+    "UEFI/GRUB image boot",
+    "Windows deployment engine",
+    "Clean outer-filesystem shutdown",
+    "Power-loss recovery and low-space behavior",
+    "Fresh-install setup completion or networking"
+  ],
+  "windows_installation_enabled": false,
+  "google_binaries_or_images_published": false,
+  "physical_disks_attached": false
+}
