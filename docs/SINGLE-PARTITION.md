@@ -45,6 +45,8 @@ NTFS is another candidate: Windows can manage its files directly, but boot then 
 
 `windows/Test-InstallReadiness.ps1` currently collects read-only Windows/WSL/disk/BitLocker information. It is not an installer, was not executed on Windows here, and does not resize, format or change EFI/BCD. A missing/denied check means unknown, not safe.
 
+The [Windows selector preview](../windows/README.md) now presents internal and USB drives, partitions and unallocated extents, with protected-partition and stale-target checks. It can save an exact proposed target but cannot install. This does not satisfy the full Android image-boot or Windows deployment gates above.
+
 ## Removal and updates
 
 An eventual uninstaller must validate the installation UUID, remove only its own EFI directory/entry and single data partition, and leave Windows boot files untouched. Reclaiming that space into C: is possible only when the free extent is adjacent and Windows allows extension. One partition simplifies removal but does not guarantee one-click C: expansion on every disk layout.

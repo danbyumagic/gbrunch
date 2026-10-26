@@ -2,7 +2,7 @@
 sleep 35
 while true; do
  echo GBRUNCH_BOOT_STATUS_BEGIN
- for key in sys.boot_completed sys.cppreopt init.svc.cppreopts service.sf.prime_shader_cache debug.hwui.renderer ro.hw_timeout_multiplier; do
+ for key in sys.boot_completed sys.cppreopt init.svc.cppreopts init.svc.bootanim service.bootanim.exit service.bootanim.progress debug.sf.nobootanimation service.sf.prime_shader_cache debug.hwui.renderer ro.hw_timeout_multiplier; do
   echo "$key=$(getprop "$key")"
  done
  echo GBRUNCH_GUEST_MEMORY

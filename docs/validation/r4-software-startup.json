@@ -1,0 +1,30 @@
+{
+  "recovery": "ruby-user 16658739 / CL3B.260622.276.R4",
+  "scope": "QEMU TCG software-rendering experiment; not original HP kernel profile or single-partition Android boot",
+  "observed": {
+    "kernel_entry_observed": true,
+    "first_stage_init_observed": true,
+    "second_stage_init_observed": true,
+    "kernel_panic_observed": false,
+    "init_invalid_opcode_trap_observed": false,
+    "userspace_fatal_signal_observed": false,
+    "boot_completed_observed": true,
+    "graphical_boot_verified": false
+  },
+  "runtime_property": "sys.boot_completed=1",
+  "focused_activity": "com.google.android.desktop.setupwizard.user.DesktopWelcomeActivity",
+  "display_observation": "Opaque BootAnimation layer remained above setup in SurfaceFlinger dump; screenshot showed logo",
+  "graphical_setup_verified": false,
+  "system_partition_modification": false,
+  "windows_or_whpx_tested": false,
+  "follow_up": {
+    "change": "VM-only debug.sf.nobootanimation=1 in compatibility init sidecar",
+    "runtime_boot_completed": true,
+    "visual_welcome_screen_verified": true,
+    "welcome_screenshot_sha256": "01cc55825c2e942c126de0c302d45d9e9df082a7f134935dd58990f990fe5d70",
+    "full_setup_completed": false,
+    "input_verified": false,
+    "animation_exit_failure_mechanism": "Not established; bypass verified",
+    "hp_profile_changed": false
+  }
+}

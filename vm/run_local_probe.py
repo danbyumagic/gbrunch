@@ -7,6 +7,7 @@ for name in ['qemu','kernel','initrd','disk','cmdline-file','work']:
 p.add_argument('--retain-writes',action='store_true',help='Keep writes in a new private overlay in scratch storage')
 p.add_argument('--qemu-img',type=pathlib.Path,help='Required for --retain-writes')
 p.add_argument('--virtual-input',action='store_true',help='Attach candidate virtio keyboard and absolute tablet')
+p.add_argument('--graphics',choices=['virtio','none'],default='virtio',help='Use none for stock-kernel storage/init probes; it cannot establish graphical boot')
 p.add_argument('--capture-frame',action='store_true',help='Save a QMP screenshot near the end of the probe')
 p.add_argument('--scratch-directory',type=pathlib.Path,help='Disk-backed directory for QEMU temporary writes; avoid RAM tmpfs')
 p.add_argument('--minimum-scratch-mb',type=int,default=1024)
@@ -39,7 +40,8 @@ if a.retain_writes:
     disk=scratch/(a.work.name+'-writes.qcow2')
     if disk.exists():p.error('Retained overlay exists; use a fresh work-directory name')
     subprocess.run([str(a.qemu_img.resolve()),'create','-f','qcow2','-F','qcow2','-b',str(a.disk),str(disk)],check=True,capture_output=True)
-cmd=[str(a.qemu),'-machine','q35','-accel','tcg','-cpu','max','-m',str(a.memory_mb),'-smp','2','-vga','none','-device','virtio-gpu-pci,romfile=','-display','none','-serial','stdio','-monitor','none','-nic','none','-no-reboot','-kernel',str(a.kernel),'-initrd',str(a.initrd),'-append',a.cmdline_file.read_text().strip(),'-drive',f'if=none,id=os,format=qcow2,{"" if a.retain_writes else "snapshot=on,"}file={str(disk).replace(",",",,")}','-device','nvme,drive=os,serial=GBRUNCHVM,addr=03.0']
+cmd=[str(a.qemu),'-machine','q35','-accel','tcg','-cpu','max','-m',str(a.memory_mb),'-smp','2','-vga','none','-display','none','-serial','stdio','-monitor','none','-nic','none','-no-reboot','-kernel',str(a.kernel),'-initrd',str(a.initrd),'-append',a.cmdline_file.read_text().strip(),'-drive',f'if=none,id=os,format=qcow2,{"" if a.retain_writes else "snapshot=on,"}file={str(disk).replace(",",",,")}','-device','nvme,drive=os,serial=GBRUNCHVM,addr=03.0']
+if a.graphics=='virtio':cmd+=['-device','virtio-gpu-pci,romfile=']
 if a.virtual_input:cmd+=['-device','virtio-keyboard-pci','-device','virtio-tablet-pci']
 if a.bios: cmd+=['-bios',str(a.bios.resolve())]
 if a.qemu_data: cmd+=['-L',str(a.qemu_data.resolve())]
@@ -77,6 +79,8 @@ with log.open('wb') as f:
         try: code=proc.wait(timeout=5)
         except subprocess.TimeoutExpired: proc.kill();code=proc.wait()
     finally: timer.cancel();capture_timer.cancel();capture_timer.join(timeout=6);proc.stdin.close()
-result={'command':cmd,'exit_code':code,'timeout':timeout,'duration_seconds':round(time.monotonic()-started,2),'storage':('new private retained overlay; no host devices' if a.retain_writes else 'disposable QEMU snapshot; no host devices'),'write_overlay':str(disk) if a.retain_writes else None,'scratch_directory':str(scratch),'scratch_free_bytes_before':free,'scratch_free_bytes_after':shutil.disk_usage(scratch).free,'desktop_success':'not inferred from process exit status','log':str(log)}
+from diagnostics.classify_boot import classify
+stages=classify(log.read_text(errors='replace'))
+result={'boot_stages':stages,'graphics_profile':a.graphics,'command':cmd,'exit_code':code,'timeout':timeout,'duration_seconds':round(time.monotonic()-started,2),'storage':('new private retained overlay; no host devices' if a.retain_writes else 'disposable QEMU snapshot; no host devices'),'write_overlay':str(disk) if a.retain_writes else None,'scratch_directory':str(scratch),'scratch_free_bytes_before':free,'scratch_free_bytes_after':shutil.disk_usage(scratch).free,'desktop_success':'not inferred from process exit status','log':str(log)}
 (a.work/'result.json').write_text(json.dumps(result,indent=2)+'\n')
 print(f'Experiment ended; inspect {log}. This does not establish desktop success.')
