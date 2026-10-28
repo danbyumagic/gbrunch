@@ -11,9 +11,9 @@ Add-Type -AssemblyName PresentationFramework
 [xml]$xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Title="GBRUNCH - experimental partition preparation" Width="1000" Height="760" MinWidth="800" MinHeight="650" WindowStartupLocation="CenterScreen">
  <Grid Margin="20"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="180"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
- <TextBlock Text="Experimental Windows installer - partition preparation" FontSize="23" FontWeight="Bold" TextWrapping="Wrap"/>
- <TextBlock Grid.Row="1" Margin="0,12" TextWrapping="Wrap" Text="Preparation can ERASE all files in the selected partition. Back up important data. Prepare creates temporary NTFS staging, not a bootable Googlebook installation. The final ext4 deployment will replace it. OS installation remains disabled."/>
- <DockPanel Grid.Row="2" Margin="0,0,0,10"><Button Name="Refresh" DockPanel.Dock="Right" Content="Refresh drives" Padding="12,6"/><ComboBox Name="Drives" DisplayMemberPath="Display" Margin="0,0,10,0"/></DockPanel>
+ <TextBlock Text="Experimental Windows builder and partition preparation" FontSize="23" FontWeight="Bold" TextWrapping="Wrap"/>
+ <TextBlock Grid.Row="1" Margin="0,12" TextWrapping="Wrap" Text="Build HP external OS creates a traditional disk-image file through existing Ubuntu WSL; flash it separately. NTFS preparation is not needed for that image and can ERASE the selected partition. Single-partition OS installation remains disabled."/>
+ <DockPanel Grid.Row="2" Margin="0,0,0,10"><Button Name="BuildHP" DockPanel.Dock="Right" Content="Build HP external OS..." Padding="12,6" Margin="8,0,0,0"/><Button Name="Refresh" DockPanel.Dock="Right" Content="Refresh drives" Padding="12,6"/><ComboBox Name="Drives" DisplayMemberPath="Display" Margin="0,0,10,0"/></DockPanel>
  <DataGrid Name="Targets" Grid.Row="3" IsReadOnly="True" AutoGenerateColumns="False" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False">
  <DataGrid.Columns><DataGridTextColumn Header="Target" Binding="{Binding Label}" Width="2*"/><DataGridTextColumn Header="Size (GiB)" Binding="{Binding GiB}" Width="90"/><DataGridCheckBoxColumn Header="Eligible" Binding="{Binding Eligible}" Width="70"/><DataGridTextColumn Header="Protection / reason" Binding="{Binding Reason}" Width="3*"/></DataGrid.Columns></DataGrid>
  <TextBox Name="Preview" Grid.Row="4" Margin="0,12" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Text="Select a drive, then a partition or unallocated extent. No target is selected automatically."/>
@@ -55,6 +55,11 @@ $targets.Add_SelectionChanged({
     }
 })
 $window.FindName('Refresh').Add_Click({ Refresh-Drives })
+$window.FindName('BuildHP').Add_Click({
+    # A separate console keeps the interface responsive and exposes build output.
+    $path=Join-Path $PSScriptRoot 'Build-HPExternal.ps1'
+    Start-Process powershell.exe -ArgumentList "-NoExit -NoProfile -ExecutionPolicy Bypass -File `"$path`""
+})
 $save.Add_Click({
     try {
         $fresh=@(Get-InstallInventory | Where-Object { $_.Number -eq $script:plan.Disk.Number })

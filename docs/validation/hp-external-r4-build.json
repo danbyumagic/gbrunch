@@ -1,0 +1,18 @@
+{
+  "uefi_boot_test": true,
+  "original_google_kernel_observed": true,
+  "android_second_stage_observed": true,
+  "kernel_panic": false,
+  "exit_code": 0,
+  "scope": "file-only headless UEFI smoke; no Intel GPU available; not HP desktop verification",
+  "recovery_build": 16658739,
+  "layout": "traditional external HP GPT layout; not one-partition",
+  "fresh_userdata_gib": 16,
+  "fresh_userdata_format_and_readonly_fsck_passed": true,
+  "non_userdata_partition_records_unchanged": true,
+  "original_super_top_overlay_write_ranges": 0,
+  "stopped_by_test_runner_after_seconds": 100,
+  "windows_wsl_sequence_executed": false,
+  "physical_hp_tested_for_this_build": false,
+  "google_images_published": false
+}
