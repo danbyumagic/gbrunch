@@ -12,7 +12,7 @@ for cmd in python3 qemu-system-x86_64 qemu-img qemu-io mcopy mformat lz4 mke2fs 
   exit 1
  fi
 done
-free=$(df -PB1 "$HOME" | awk 'NR==2 {print $4}')
+free=$(python3 -c 'import pathlib,shutil; print(shutil.disk_usage(pathlib.Path.home()).free)')
 if (( free < 45000000000 )); then echo 'At least 45 GB free is required for the local sparse build/cache and compressed result.' >&2; exit 1; fi
 mkdir -p "$work/source" "$work/cache"
 cp -a "$repo/tools" "$repo/profiles" "$work/source/"
@@ -33,4 +33,4 @@ echo "Image: $work/gbrunch-hp-external-r4.img.gz"
 echo 'This uses the traditional multi-partition HP layout, original Google kernel and V7 compatibility.'
 echo 'R4 is newer than the physically tested HP recovery. A successful build is not proof of HP boot.'
 echo 'The image is not written to an SSD. Keep the cache/QCOW2 backing files together.'
-echo 'Open this WSL directory in Windows Explorer with: explorer.exe .'
+if [[ $(uname -s) == Darwin ]]; then echo "Open the build directory with: open \"$work\""; else echo 'Open this WSL directory in Windows Explorer with: explorer.exe .'; fi
