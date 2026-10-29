@@ -24,8 +24,17 @@ class MacFlashTests(unittest.TestCase):
    d=pathlib.Path(td);p=d/'p';p.write_bytes(b'x');raw=d/'official.img';g.gpt_image(raw,[('userdata',p),('super',p)]);b=raw.read_bytes()
    with self.assertRaises(ValueError):m.validate_gpt(b[:1<<20],b[-(1<<20):],len(b))
  def test_apfs_source_resolves_to_its_physical_store(self):
-  records={'/dev/disk3s5':{'ParentWholeDisk':'disk3','APFSContainerReference':'disk3'},'/dev/disk3':{'VirtualOrPhysical':'Virtual'},'/dev/disk0s2':{'ParentWholeDisk':'disk0'},'/dev/disk0':{'VirtualOrPhysical':'Physical','DeviceIdentifier':'disk0'}}
+  records={'/dev/disk3s5':{'ParentWholeDisk':'disk3','APFSContainerReference':'disk3'},'/dev/disk3':{'DeviceIdentifier':'disk3','WholeDisk':True,'VirtualOrPhysical':'Virtual'},'/dev/disk0s2':{'ParentWholeDisk':'disk0'},'/dev/disk0':{'WholeDisk':True,'VirtualOrPhysical':'Physical','DeviceIdentifier':'disk0'}}
   containers={'Containers':[{'ContainerReference':'disk3','PhysicalStores':[{'DeviceIdentifier':'disk0s2'}]}]}
   with patch.object(m,'disk_info',side_effect=lambda dev:records[dev]),patch.object(m,'plist',return_value=containers),patch.object(m.subprocess,'check_output',return_value='Filesystem blocks used available capacity mounted\n/dev/disk3s5 1 1 1 1% /System/Volumes/Data\n'):
    self.assertEqual(m.source_physical_disks(pathlib.Path('/Users/test/image.gz')),{'disk0'})
+ def test_apfs_snapshot_without_parent_key_resolves(self):
+  records={'/dev/disk3s1s1':{'DeviceIdentifier':'disk3s1s1','APFSContainerReference':'disk3'},'/dev/disk3':{'DeviceIdentifier':'disk3','WholeDisk':True,'VirtualOrPhysical':'Virtual'},'/dev/disk0':{'DeviceIdentifier':'disk0','WholeDisk':True,'VirtualOrPhysical':'Physical'}}
+  containers={'Containers':[{'ContainerReference':'disk3','PhysicalStores':[{'DeviceIdentifier':'disk0s2'}]}]}
+  with patch.object(m,'disk_info',side_effect=lambda dev:records[dev]),patch.object(m,'plist',return_value=containers),patch.object(m.subprocess,'check_output',return_value='Filesystem blocks used available capacity mounted\n/dev/disk3s1s1 1 1 1 1% /\n'):
+   self.assertEqual(m.source_physical_disks(pathlib.Path('/')),{'disk0'})
+ def test_whole_device_requires_verified_whole_disk(self):
+  for record in ({'DeviceIdentifier':'disk0','WholeDisk':False},{'DeviceIdentifier':'disk1','WholeDisk':True}):
+   with patch.object(m,'disk_info',return_value=record):
+    with self.assertRaises(ValueError):m.whole_device('disk0s2')
 if __name__=='__main__':unittest.main()

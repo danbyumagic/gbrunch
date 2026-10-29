@@ -63,13 +63,23 @@ def inspect_image(path,expected):
     partitions=validate_gpt(bytes(first),bytes(last),size)
     return size,rawhash.hexdigest(),partitions
 
+def whole_device(device):
+    # ParentWholeDisk is absent or refers to a partition on some macOS versions.
+    # Derive the whole-disk node, then verify it through diskutil, never by name alone.
+    match=re.fullmatch(r'(?:/dev/)?(disk\d+)(?:s\d+)*',str(device))
+    if not match:raise ValueError('Invalid local disk identifier')
+    node=match.group(1);info=disk_info('/dev/'+node)
+    if info.get('DeviceIdentifier')!=node or info.get('WholeDisk') is not True:
+        raise ValueError('Cannot verify whole disk for '+str(device))
+    return info
+
 def source_physical_disks(image):
     # Resolve the input filesystem, including APFS containers, before unmounting.
     rows=subprocess.check_output(['/bin/df','-P',str(image)],text=True).splitlines()
     device=rows[-1].split()[0]
     if not re.fullmatch(r'/dev/disk\d+(?:s\d+)*',device):raise ValueError('Place the image on a local Mac disk before flashing')
     info=disk_info(device);parent=info.get('ParentWholeDisk') or info.get('DeviceIdentifier')
-    whole=disk_info('/dev/'+parent)
+    whole=whole_device(device)
     if whole.get('VirtualOrPhysical')=='Physical':return {whole['DeviceIdentifier']}
     container=info.get('APFSContainerReference') or parent
     apfs=plist(['/usr/sbin/diskutil','apfs','list','-plist'])
@@ -77,7 +87,7 @@ def source_physical_disks(image):
         if item.get('ContainerReference')==container:
             result=set()
             for store in item.get('PhysicalStores',[]):
-                record=disk_info('/dev/'+store['DeviceIdentifier']);p=record.get('ParentWholeDisk') or record['DeviceIdentifier'];physical=disk_info('/dev/'+p)
+                physical=whole_device(store['DeviceIdentifier'])
                 if physical.get('VirtualOrPhysical')!='Physical':raise ValueError('Cannot resolve image storage to a physical disk')
                 result.add(physical['DeviceIdentifier'])
             if result:return result
