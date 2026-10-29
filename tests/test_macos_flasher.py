@@ -37,4 +37,15 @@ class MacFlashTests(unittest.TestCase):
   for record in ({'DeviceIdentifier':'disk0','WholeDisk':False},{'DeviceIdentifier':'disk1','WholeDisk':True}):
    with patch.object(m,'disk_info',return_value=record):
     with self.assertRaises(ValueError):m.whole_device('disk0s2')
+ def test_apple_internal_unknown_is_protected_source_only(self):
+  apple={'DeviceIdentifier':'disk0','WholeDisk':True,'VirtualOrPhysical':'Unknown','Internal':True,'DeviceTreePath':'IODeviceTree:/arm-io/ans/AppleANS3CGv2Controller'}
+  self.assertTrue(m.protected_source_disk(apple))
+  for changes in ({'Internal':False},{'WholeDisk':False},{'DeviceTreePath':''},{'VirtualOrPhysical':'Virtual'}):
+   with self.subTest(changes=changes):self.assertFalse(m.protected_source_disk(dict(apple,**changes)))
+  target=self.info();target['VirtualOrPhysical']='Unknown'
+  with self.assertRaises(ValueError):m.check_target(target,37000000000)
+  records={'/dev/disk3s1s1':{'DeviceIdentifier':'disk3s1s1','APFSContainerReference':'disk3'},'/dev/disk3':{'DeviceIdentifier':'disk3','WholeDisk':True,'VirtualOrPhysical':'Virtual'},'/dev/disk0':apple}
+  containers={'Containers':[{'ContainerReference':'disk3','PhysicalStores':[{'DeviceIdentifier':'disk0s2'}]}]}
+  with patch.object(m,'disk_info',side_effect=lambda dev:records[dev]),patch.object(m,'plist',return_value=containers),patch.object(m.subprocess,'check_output',return_value='Filesystem blocks used available capacity mounted\n/dev/disk3s1s1 1 1 1 1% /\n'):
+   self.assertEqual(m.source_physical_disks(pathlib.Path('/')),{'disk0'})
 if __name__=='__main__':unittest.main()

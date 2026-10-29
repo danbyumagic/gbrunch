@@ -73,6 +73,13 @@ def whole_device(device):
         raise ValueError('Cannot verify whole disk for '+str(device))
     return info
 
+def protected_source_disk(info):
+    # Apple Silicon internal SSDs can report Unknown. This exception identifies
+    # protected SOURCE storage only; check_target still requires Physical.
+    return info.get('VirtualOrPhysical')=='Physical' or (
+        info.get('VirtualOrPhysical')=='Unknown' and info.get('Internal') is True
+        and info.get('WholeDisk') is True and bool(info.get('DeviceTreePath')))
+
 def source_physical_disks(image):
     # Resolve the input filesystem, including APFS containers, before unmounting.
     rows=subprocess.check_output(['/bin/df','-P',str(image)],text=True).splitlines()
@@ -80,7 +87,7 @@ def source_physical_disks(image):
     if not re.fullmatch(r'/dev/disk\d+(?:s\d+)*',device):raise ValueError('Place the image on a local Mac disk before flashing')
     info=disk_info(device);parent=info.get('ParentWholeDisk') or info.get('DeviceIdentifier')
     whole=whole_device(device)
-    if whole.get('VirtualOrPhysical')=='Physical':return {whole['DeviceIdentifier']}
+    if protected_source_disk(whole):return {whole['DeviceIdentifier']}
     container=info.get('APFSContainerReference') or parent
     apfs=plist(['/usr/sbin/diskutil','apfs','list','-plist'])
     for item in apfs.get('Containers',[]):
@@ -88,7 +95,7 @@ def source_physical_disks(image):
             result=set()
             for store in item.get('PhysicalStores',[]):
                 physical=whole_device(store['DeviceIdentifier'])
-                if physical.get('VirtualOrPhysical')!='Physical':raise ValueError('Cannot resolve image storage to a physical disk')
+                if not protected_source_disk(physical):raise ValueError('Cannot resolve image storage to a physical disk')
                 result.add(physical['DeviceIdentifier'])
             if result:return result
     raise ValueError('Cannot establish where the input image is stored; refusing to unmount a possible source disk')
