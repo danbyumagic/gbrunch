@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<audio_config>
+	<!-- GBRUNCH hp-dragonfly-g4: SOF sof-hda-generic-2ch (IPC3) on 8086:51ca, Realtek ALC245.
+	PCMs: 0 HDA Analog (speaker out), 3-5 HDMI1-3, 6 DMIC, 7 DMIC16kHz, 31 HDA Analog Deep Buffer.
+	The Dragonfly G4 has no 3.5 mm jack, so no Headphone/Mic sections (DRAS requires JackSwitch with JackDev).
+	Section fields follow Ruby's proven config. Speaker output reaches the CS35L41 amplifiers,
+	which have no driver in this build, so the internal speakers stay silent. -->
+	<SoundCardName>hw:sofhdadsp</SoundCardName>
+	<HiFi>
+		<InternalMic>
+			<CapturePCM>hw:sofhdadsp,6</CapturePCM>
+			<CaptureChannelMap>
+				<FL>0</FL>
+				<FR>1</FR>
+			</CaptureChannelMap>
+			<IntrinsicSensitivity>-2600</IntrinsicSensitivity>
+			<DSPLatency>0</DSPLatency>
+		</InternalMic>
+		<Speaker>
+			<PlaybackPCM>hw:sofhdadsp,0</PlaybackPCM>
+			<DSPLatency>0</DSPLatency>
+		</Speaker>
+		<HDMI1>
+			<PlaybackPCM>hw:sofhdadsp,3</PlaybackPCM>
+			<JackDev>sof-hda-dsp HDMI/DP,pcm=3</JackDev>
+			<PlaybackChannels>2</PlaybackChannels>
+		</HDMI1>
+		<HDMI2>
+			<PlaybackPCM>hw:sofhdadsp,4</PlaybackPCM>
+			<JackDev>sof-hda-dsp HDMI/DP,pcm=4</JackDev>
+			<PlaybackChannels>2</PlaybackChannels>
+		</HDMI2>
+		<HDMI3>
+			<PlaybackPCM>hw:sofhdadsp,5</PlaybackPCM>
+			<JackDev>sof-hda-dsp HDMI/DP,pcm=5</JackDev>
+			<PlaybackChannels>2</PlaybackChannels>
+		</HDMI3>
+	</HiFi>
+</audio_config>

@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mixer enum_mixer_numeric_fallback="true">
+	<!-- GBRUNCH hp-dragonfly-g4: control names and ranges from "amixer -c 0 contents" on the
+	target (ALC245 with the 103c:8b63 fixup, SOF sof-hda-generic-2ch). Volume maxima are 0 dB. -->
+	<ctl name="Auto-Mute Mode" value="Disabled" />
+	<ctl name="Master Playback Switch" value="1" />
+	<ctl name="Master Playback Volume" value="87" />
+	<ctl name="Speaker Playback Switch" value="0 0" />
+	<ctl name="Speaker Playback Volume" value="87 87" />
+	<ctl name="Dmic0 Capture Switch" value="0 0" />
+	<ctl name="Dmic0 Capture Volume" value="70 70" />
+	<path name="Speaker">
+		<ctl name="Speaker Playback Switch" value="1 1" />
+	</path>
+	<path name="InternalMic">
+		<ctl name="Dmic0 Capture Switch" value="1 1" />
+	</path>
+	<path name="HDMI1" />
+	<path name="HDMI2" />
+	<path name="HDMI3" />
+</mixer>

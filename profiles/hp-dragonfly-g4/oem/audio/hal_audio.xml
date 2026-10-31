@@ -1,0 +1,8 @@
+<!-- GBRUNCH hp-dragonfly-g4: bind-mounted over /vendor/etc/data/hal_configs/audio_*.xml.
+     The ALSA card is the SOF HDA generic machine (ALC245 + 2 DMICs). The config directory keeps
+     Ruby's name because only files, not directories, can be bind-mounted into /vendor;
+     its audio_config.xml and mixer_paths.xml are replaced with the files below. -->
+<AudioConfiguration>
+  <soundcard>sof-hda-dsp</soundcard>
+  <audio-config-dir>sof-rt5682_alc5682ivs_tas2563</audio-config-dir>
+</AudioConfiguration>

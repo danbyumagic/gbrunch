@@ -22,7 +22,7 @@ occurred. Which option is strictly needed has not been isolated; DPT is the prim
 | NVMe | MAXIO MAP1202 `1e4b:1202` | built in | OK (no VMD) |
 | Keyboard / touchpad | i8042 / SYNA310F I2C-HID | built in | OK |
 | USB Ethernet (dock) | RTL8153 `0bda:8153` | r8152 + firmware | OK |
-| Audio | ALC245 via SOF `8086:51ca`, 2 DMICs | alc269 has the 103c:8b63 quirk; SOF IPC4 firmware is PTL-only | Not working: needs RPL SOF firmware and Android audio config |
+| Audio | ALC245 via SOF `8086:51ca`, 2 DMICs | alc269 has the 103c:8b63 quirk; SOF firmware added by the profile | HDMI output works; no 3.5 mm jack on this model |
 | Speakers | 4x CS35L41 on SPI0 (`CSC3551`, full `_DSD`) | no serial-multi-instantiate / snd-hda-scodec-cs35l41; required SPI symbols not exported by GKI | Not working: needs out-of-tree modules plus a shim |
 | Camera | IPU6EP `8086:a75d`, hi556 + OVTI00AB, INT3472 | camera HAL is IPU7-only | Not working: use a USB UVC camera |
 | Hotkeys | intel_hid, hp_wmi | neither present | Some Fn keys missing |
@@ -89,6 +89,24 @@ partitions from the image when recovering a disk that has been through such a lo
 ## Known gaps and next work
 
 - Display density: `init.gbrunch.rc` sets `qemu.sf.lcd_density 160` for the 15.6" 1080p HP. The Dragonfly is 13.5" 1920x1280 (about 168 dpi); 160 is usable, though text may look small.
-- Audio: add `intel/sof-ipc4/rpl` firmware from sof-bin and an Android audio configuration for the SOF HDA generic card.
+- Audio: **HDMI audio output works (physical test 2026-11-01).** Required pieces:
+  1. Kernel: `snd_intel_dspcfg.dsp_driver=3` (otherwise `snd_soc_avs` claims `8086:51ca` and fails on the missing
+     `intel/avs/adl/dsp_basefw.bin`). Also needed: `snd_sof_intel_hda_generic.dmic_num=2 hda_model=auto`, overriding Ruby's
+     `modules.options` (`alc-2024y-chromebook dmic_num=4`). SOF IPC3 `sof-rpl.ri` + `sof-hda-generic-2ch.tplg`
+     from Debian `firmware-sof-signed` 2026.09.2-1 go in `/oem/firmware`, because `firmware_class.path=/oem/firmware`
+     hides `/vendor/firmware` from direct loads.
+  2. DRAS: there is no `ro.boot.product.hardware.id`, so DRAS cannot resolve a SKU/model ("Both card_name, model should
+     be provided") and reads the fallback `/vendor/etc/{audio_config,mixer_paths,volume_curves}.xml`. The profile adds
+     those three files to the locally derived GBVENDOR. A patch to the tool VM script adds them, and must start from the
+     LAST copy of `payload/native_vendor_in_vm.py` in the multi-archive tool initrd. Patching the first (older) copy
+     dropped the graphics memfd and shell rules: the panel went black and the launcher crashed.
+  3. `audio_config.xml`: sections with `JackDev` also need `JackSwitch` (the error is "missing field `JackSwitch`").
+     The Dragonfly has no 3.5 mm jack, so only InternalMic (PCM 6), Speaker (PCM 0) and HDMI1-3 (PCM 3-5) are listed.
+  Still missing: internal speakers (CS35L41 x4 need out-of-tree modules), and the internal microphone recording is untested.
+- Charging indicator: Android sees only `BAT0`. Ruby's vendor modules ship ACPI `battery.ko` but not `ac.ko`
+  (`Unable to find a module for acpi:ACPI0003`), so `AC powered` stays false. This needs an out-of-tree `ac.ko`
+  built for the GKI android17-6.18 KMI, the same build environment as the speaker modules.
+- External display: HDMI to a 1920x1080 TV works as an extended display. Booting with HDMI attached was not
+  re-tested after the GBVENDOR policy fix.
 - Speakers: see the GKI export analysis in the profile notes. A shim must instantiate the four SPI amps through `spi_new_device`.
 - Do not publish `acpi/MSDM` from a hardware inventory; it contains the Windows product key.

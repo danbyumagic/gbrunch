@@ -12,7 +12,12 @@ COMPAT_HASH='77cb6ec0e399a944a020b5d7d55d03dbd1bb5a2ba01012be91d315987ab69722'
 # Reviewed compatibility images: the tested V7 image plus hardware profiles derived
 # from it by tools/prepare_profile_assets.py (deterministic e2fsprogs output).
 COMPAT_HASHES={COMPAT_HASH:'V7',
- 'a341d089c546ead50d8f25e196c46fb18b5781a68ebca6ccfaa2355e35f3e542':'V7 + hp-dragonfly-g4 firmware profile'}
+ 'a341d089c546ead50d8f25e196c46fb18b5781a68ebca6ccfaa2355e35f3e542':'V7 + hp-dragonfly-g4 firmware profile (first boot test)',
+ 'f89891558a1e5ce29fae8bbaef1cefd2dbdcfc355154a4b4641c2f815aad3e94':'V7 + hp-dragonfly-g4 firmware profile + SOF audio + logger capture',
+ '3270bfccb236eacd67232d96356296a69db65ae142bc4d18d86443a581542856':'V7 + hp-dragonfly-g4 profile + SOF audio (2ch/4ch topologies) + logger capture',
+ '94474a03153f88eeb8cc8da372459e2b08714cd4a9e8b671e821ff14751f8232':'V7 + hp-dragonfly-g4 profile + SOF audio + DRAS card config + battery logging',
+ '9a48c35b50d5db463064a983d95270ebc97b27731cc98115e435567badef2199':'V7 + hp-dragonfly-g4 profile + SOF audio + DRAS card config + audio/battery logging',
+ 'ba193c50bb8f92d9a81daf9448d18fccc93afe4a5bd5cfa567b3b94843e188a0':'V7 + hp-dragonfly-g4 profile + SOF audio + DRAS config without jack sections + logging'}
 SOURCE_GUIDS={'GBRUNCH':'4ab7c001-7400-4bab-b412-43cbd52b9fb1','GBVENDOR':'4ab7c002-7400-4bab-b412-43cbd52b9fb1','GBLOG':'4ab7c003-7400-4bab-b412-43cbd52b9fb1'}
 EXPECTED={'userdata','KERN-A','super','KERN-B','ROOT-B','KERN-C','ROOT-C','OEM','ota_recovery_a','ota_recovery_b','EFI-SYSTEM','boot_a','boot_b','vbmeta_a','vbmeta_b','metadata','init_boot_a','init_boot_b','vendor_boot_a','vendor_boot_b','pvmfw_a','pvmfw_b','misc','RWFW-A','RWFW-B','recovery_a','recovery_b','desktop_security_persist','desktop_security_storage','frp_persist','GBRUNCH','GBVENDOR','GBLOG'}
 def require(value,message):
