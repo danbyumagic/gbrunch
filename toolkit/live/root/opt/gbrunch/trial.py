@@ -2,6 +2,8 @@
 """Deploy the verified local build ONLY into the boot USB's reserved tail."""
 import pathlib,sys,subprocess,json,struct,zlib,uuid,os,fcntl,datetime,shutil,traceback
 sys.path.insert(0,'/opt/gbrunch/source')
+# Optional reviewed overrides (for example a hardware-profile build) placed ahead of the ISO copy.
+if os.environ.get('GBRUNCH_SOURCE_OVERRIDE'):sys.path.insert(0,os.environ['GBRUNCH_SOURCE_OVERRIDE'])
 from dualboot_installer import require,identity,capacity,read_layout,sha_range,digest,Writer,prepare_payloads,command,write_all,validate_plan_layout
 from inspect_recovery import gpt
 from toolbox_source import local_source,workspace

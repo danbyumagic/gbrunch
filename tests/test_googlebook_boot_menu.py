@@ -2,7 +2,7 @@
 """Admission change must preserve boot arguments and installer UUID remapping."""
 import pathlib,sys,tempfile,subprocess,unittest
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'tools'))
-from googlebook_boot_menu import render,command_line
+from googlebook_boot_menu import render,command_line,smbios_gate,PROFILES
 CMD='rdinit=/init console=ttyS0,115200 loglevel=8 drm.debug=0 androidboot.boot_part_uuid=12345678-1234-1234-1234-123456789abc androidboot.init_rc=/oem/init.gbrunch.rc'
 class MenuTests(unittest.TestCase):
  def test_identical_command_and_default_gate(self):
@@ -11,6 +11,8 @@ class MenuTests(unittest.TestCase):
   self.assertEqual(cfg.count('linux /EFI/GBRUNCH/kernel '),1)
   self.assertIn('set default=0',cfg)
   self.assertIn('"$board_product" = "8C4F"',cfg)
+  self.assertIn('"$board_product" = "8B63"',cfg)
+  self.assertIn('"$system_product" = "HP Dragonfly 13.5 inch G4 Notebook PC"',cfg)
   experimental=cfg.split("menuentry 'Experimental boot",1)[1].split("menuentry 'UEFI",1)[0]
   self.assertIn('gbrunch_boot',experimental);self.assertNotIn('smbios',experimental)
  def test_amd_entry_is_opt_in_and_uses_separate_guarded_assets(self):
@@ -23,6 +25,20 @@ class MenuTests(unittest.TestCase):
   self.assertIn("linux /EFI/GBRUNCH-AMD/kernel",cfg)
   self.assertIn("androidboot.init_rc=/oem/init.gbrunch-amd.rc",cfg)
   self.assertIn("drm.debug=0x1e",cfg)
+ def test_profile_gate_is_exact_and_nested(self):
+  gate=smbios_gate()
+  # Every profile requires vendor, product and board together; no partial matches.
+  for v in PROFILES:
+   block=gate.split('"$system_product" = "%s"'%v['product'],1)[1].split(' fi\n',1)[0]
+   self.assertIn('"$board_product" = "%s"'%v['board'],block)
+  self.assertEqual(gate.count('set allowed=1'),len(PROFILES)+1)
+  lines=[l.strip() for l in gate.splitlines()]
+  self.assertEqual(lines.count('fi'),sum(l.startswith('if [') for l in lines))
+ def test_unsafe_profile_value_rejected(self):
+  PROFILES.append({'name':'x','status':'profile','vendor':'HP','product':'bad"; reboot','board':'0000'})
+  try:
+   with self.assertRaises(ValueError):smbios_gate()
+  finally:PROFILES.pop()
  def test_installer_uuid_remapping(self):
   cfg=render(CMD).replace('12345678-1234-1234-1234-123456789abc','87654321-4321-4321-4321-cba987654321')
   self.assertIn('androidboot.boot_part_uuid=87654321-4321-4321-4321-cba987654321',command_line(cfg))

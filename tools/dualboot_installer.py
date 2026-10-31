@@ -9,6 +9,10 @@ from googlebook_boot_menu import render as render_boot_menu
 MiB=1<<20;GiB=1<<30
 ESP='c12a7328-f81f-11d2-ba4b-00a0c93ec93b';BASIC='ebd0a0a2-b9e5-4433-87c0-68b6b72699c7'
 COMPAT_HASH='77cb6ec0e399a944a020b5d7d55d03dbd1bb5a2ba01012be91d315987ab69722'
+# Reviewed compatibility images: the tested V7 image plus hardware profiles derived
+# from it by tools/prepare_profile_assets.py (deterministic e2fsprogs output).
+COMPAT_HASHES={COMPAT_HASH:'V7',
+ 'a341d089c546ead50d8f25e196c46fb18b5781a68ebca6ccfaa2355e35f3e542':'V7 + hp-dragonfly-g4 firmware profile'}
 SOURCE_GUIDS={'GBRUNCH':'4ab7c001-7400-4bab-b412-43cbd52b9fb1','GBVENDOR':'4ab7c002-7400-4bab-b412-43cbd52b9fb1','GBLOG':'4ab7c003-7400-4bab-b412-43cbd52b9fb1'}
 EXPECTED={'userdata','KERN-A','super','KERN-B','ROOT-B','KERN-C','ROOT-C','OEM','ota_recovery_a','ota_recovery_b','EFI-SYSTEM','boot_a','boot_b','vbmeta_a','vbmeta_b','metadata','init_boot_a','init_boot_b','vendor_boot_a','vendor_boot_b','pvmfw_a','pvmfw_b','misc','RWFW-A','RWFW-B','recovery_a','recovery_b','desktop_security_persist','desktop_security_storage','frp_persist','GBRUNCH','GBVENDOR','GBLOG'}
 def require(value,message):
@@ -93,7 +97,7 @@ def make_plan(source,target,userdata_gib=32,fixture=False):
  require(set(by)==EXPECTED and len(by)==len(sl['parts']),'Source is not the known Ruby/GBRUNCH partition profile')
  for name,guid in SOURCE_GUIDS.items():require(by[name]['guid']==guid,'Unexpected source compatibility GUID')
  require(by['GBRUNCH']['bytes']==64*MiB,'Unexpected compatibility partition size')
- require(sha_range(source,by['GBRUNCH']['offset'],64*MiB)==COMPAT_HASH,'Source must contain the tested V7 compatibility image')
+ compat=sha_range(source,by['GBRUNCH']['offset'],64*MiB);require(compat in COMPAT_HASHES,'Source must contain a reviewed V7-based compatibility image')
  require(not any(p['name'] in EXPECTED or p['name']=='GBRUNCH_EFI' for p in tl['parts']),'Destination already contains Googlebook partition names')
  require(any(p['type_guid']==ESP for p in tl['parts']),'Destination lacks a Windows EFI partition')
  windows=[]
@@ -120,7 +124,7 @@ def make_plan(source,target,userdata_gib=32,fixture=False):
  cursor=gap[0];new=[]
  for slot,(p,size) in zip(slots,requested):
   new.append(dict(index=slot,name='GBRUNCH_EFI' if p['name']=='EFI-SYSTEM' else p['name'],source_name=p['name'],offset=cursor,bytes=size,source_offset=p['offset'],source_bytes=p['bytes'],guid=str(uuid.uuid4()),type_guid=p['type_guid'],attributes=p['attributes']));cursor+=size
- value=dict(version=1,source=si,target=ti,source_gpt_sha256=sl['hash'],target_gpt_sha256=tl['hash'],source_compat_sha256=COMPAT_HASH,existing_partitions=tl['parts'],new_partitions=new,allocation_start=gap[0],allocation_end=cursor,required_bytes=total,userdata_gib=userdata_gib,fixture=fixture,windows_guids=windows,userdata='fresh; external Android data is preserved, not migrated',boot_order='new GBRUNCH entry appended; existing Windows priority is retained')
+ value=dict(version=1,source=si,target=ti,source_gpt_sha256=sl['hash'],target_gpt_sha256=tl['hash'],source_compat_sha256=compat,existing_partitions=tl['parts'],new_partitions=new,allocation_start=gap[0],allocation_end=cursor,required_bytes=total,userdata_gib=userdata_gib,fixture=fixture,windows_guids=windows,userdata='fresh; external Android data is preserved, not migrated',boot_order='new GBRUNCH entry appended; existing Windows priority is retained')
  value['plan_sha256']=digest(value);return value
 
 def gpt_payload(layout,new):
@@ -202,7 +206,7 @@ def apply_plan(plan,log,assets,confirmation,fixture=False,fault=None):
  sl=read_layout(source);tl=read_layout(target)
  require(sl['hash']==plan['source_gpt_sha256'] and tl['hash']==plan['target_gpt_sha256'],'GPT changed since inspection')
  validate_plan_layout(plan,sl,tl)
- require(sha_range(source,next(p['offset'] for p in sl['parts'] if p['name']=='GBRUNCH'),64*MiB)==COMPAT_HASH,'Source V7 changed')
+ require(sha_range(source,next(p['offset'] for p in sl['parts'] if p['name']=='GBRUNCH'),64*MiB)==plan['source_compat_sha256'] and plan['source_compat_sha256'] in COMPAT_HASHES,'Source compatibility image changed')
  (log/'original-primary.bin').write_bytes(tl['mbr']+tl['header']+tl['table']);(log/'original-backup.bin').write_bytes(tl['tail']);os.sync()
  state=dict(phase='preparing boot files',gpt_committed=False,windows_partitions_untouched=True,source_readonly=True);save(log,'status.json',state)
  try:payloads=prepare_payloads(plan,log,assets)
