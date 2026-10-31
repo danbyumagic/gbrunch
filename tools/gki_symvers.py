@@ -36,6 +36,16 @@ def vmlinux_exports(path):
         out[name]={'crc':struct.unpack_from('<I',b,kc[4]+i*4)[0],'module':'vmlinux','ns':ns}
     return out
 
+def vmlinux_protected(path):
+    """vmlinux exports flagged KSYM_FLAG_PROTECTED in __kflagstab: unusable by unsigned modules."""
+    b=path.read_bytes();sec=elf_sections(b)
+    ks,fl,st=sec['__ksymtab'],sec['__kflagstab'],sec['__ksymtab_strings'];out=set()
+    for i in range(ks[5]//12):
+        if b[fl[4]+i]&2:
+            base=ks[3]+i*12;rel=struct.unpack_from('<i',b,ks[4]+i*12+4)[0]
+            out.add(cstr(b,st[4]+base+4+rel-st[3]))
+    return out
+
 def module_imports(path):
     """(name,crc) pairs a stock module was linked against."""
     b=path.read_bytes();sec=elf_sections(b);pairs=[]

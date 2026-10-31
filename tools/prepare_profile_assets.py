@@ -30,6 +30,7 @@ LOGGER_ANCHOR='''    capture "$n-wifi.txt" dumpsys -t 5 wifi
 '''
 LOGGER_CAPTURE='''    capture "$n-backlight-audio.txt" sh -c 'for d in /sys/class/backlight/*; do echo "== $d"; for f in type max_brightness brightness actual_brightness bl_power; do echo "$f=$(cat $d/$f)"; done; done; cat /proc/asound/cards /proc/asound/pcm; ls -l /dev/snd; dumpsys -t 5 media.audio_flinger | head -200; dumpsys -t 5 media.audio_policy | head -200'
     capture "$n-audio-logcat.txt" sh -c 'logcat -b all -d -v threadtime | grep -iE "audio|dras|APM_|soundcard|hal_?config|sofhdadsp|sof-hda|tinyalsa|mixer|alsa" | tail -c 1048576'
+    capture "$n-audio-kernel.txt" sh -c 'dmesg | grep -iE "cs35l41|cs_dsp|sof-audio|snd_hda|alc269|ehdaudio|hdac|skl_hda" | tail -c 262144'
     capture "$n-battery.txt" sh -c 'dumpsys -t 5 battery; for d in /sys/class/power_supply/*; do echo "== $d -> $(readlink -f $d)"; for f in type online status capacity; do echo "$f=$(cat $d/$f)"; done; done'
 '''
 PROFILE_DIR=pathlib.Path(__file__).resolve().parents[1]/'profiles'
@@ -41,7 +42,7 @@ INIT_ANCHOR='''    mount none /oem/weaver-manifest.xml /vendor/etc/vintf/manifes
 PROFILES={
  'hp-dragonfly-g4':{
   'board':'8B63',
-  'compat_sha256':'26d046edc88535794ca8395355462a06758b22300a5cda88b14d37c1073aec43',
+  'compat_sha256':'af67e02b59f7eddd093e33c5c07220cb2f777b903ce2e3b05300ffb5509737fd',
   # Physical test 2026-10-31: with defaults the RPL-U eDP primary plane faulted
   # ("[PLANE:33:plane 1A] fault", Y-tiled XRGB via DPT) and the panel went black.
   # These xe display options removed every fault; setup and apps then worked.
@@ -70,11 +71,26 @@ PROFILES={
   # Out-of-tree GKI modules from tools/build_gki_modules.py (--gki-modules DIR), loaded by init.
   # ac.ko: ACPI0003 AC adapter. Ruby's vendor modules ship battery.ko but not ac.ko, so Android
   # never saw the charger (AC powered: false).
-  'oem_modules':[{'file':'ac.ko','sha256':'773b704764e4b45ad853630c986634a54146ddcd65fbe5a0009ea6c421ffe680'}],
+  # 'stage': early-init (ACPI platform devices exist) or post-fs-data (after ueventd coldboot has loaded the
+  # LPSS SPI controller). Entries with 'stock' are Ruby vendor modules, loaded in place from /vendor.
+  # Speakers: 4x CS35L41 on SPI0 behind ACPI CSC3551. The chain is stock cs_dsp/cs-amp-lib, then our
+  # cs35l41-lib (it replaces the stock one, whose CRCs come from a different tree; never load both), then
+  # the gbrunch-csc3551-spi shim (creates and names the SPI devices), then the CS35L41 HDA driver + SPI glue.
+  'oem_modules':[
+   {'file':'ac.ko','sha256':'773b704764e4b45ad853630c986634a54146ddcd65fbe5a0009ea6c421ffe680','stage':'early-init'},
+   {'stock':'/vendor/lib/modules/cs_dsp.ko','stage':'post-fs-data'},
+   {'stock':'/vendor/lib/modules/snd-soc-cs-amp-lib.ko','stage':'post-fs-data'},
+   {'file':'snd-soc-cs35l41-lib.ko','sha256':'e6fa3f7048e07641a68efc4a497280dcef83f0738f8a482f539e8250ae6f6712','stage':'post-fs-data'},
+   {'file':'gbrunch_csc3551_spi.ko','sha256':'86ddcf57f29f550fdc662342a15bb3b1c2905c7bd13dd231734ae736f71ed03d','stage':'post-fs-data'},
+   {'file':'snd-hda-scodec-cs35l41.ko','sha256':'3b70ad93e75c88858364ab4dbc015d672d0032dc5c9db270f71d85e5be799e02','stage':'post-fs-data'},
+   {'file':'snd-hda-scodec-cs35l41-spi.ko','sha256':'d1c1c194fb96482ac067db41536319aa70f99688a477f20b4ff7ddfdb5513c71','stage':'post-fs-data'},
+  ],
   'init_binds':[('/oem/audio/hal_audio.xml','/vendor/etc/data/hal_configs/audio_default.xml'),
                 ('/oem/audio/hal_audio.xml','/vendor/etc/data/hal_configs/audio_alc5682i_tas2563rppr.xml'),
                 ('/oem/audio/audio_config.xml','/vendor/etc/audio/sof-rt5682_alc5682ivs_tas2563/audio_config.xml'),
-                ('/oem/audio/mixer_paths.xml','/vendor/etc/audio/sof-rt5682_alc5682ivs_tas2563/mixer_paths.xml')],
+                ('/oem/audio/mixer_paths.xml','/vendor/etc/audio/sof-rt5682_alc5682ivs_tas2563/mixer_paths.xml'),
+                # DRAS's fallback path (vendor_files below); bound so mixer changes need only GBRUNCH.
+                ('/oem/audio/mixer_paths.xml','/vendor/etc/mixer_paths.xml')],
   'evidence':'Ubuntu 7.0 live dmesg on the target: i915 adlp_dmc/adlp_guc_70/tgl_huc, iwlwifi so-a0-gf-a0-89 (8086:51f1 sub 8086:0094), btintel ibt-0040-0041 (8087:0033)',
   'files':[
    {'name':'i915/adlp_dmc.bin','target':'initrd','sha256':'3516de2e134ddcf3b319c75d2e437779fecbd58cbb77234bd6f297c544e92ccb','bytes':79088},
@@ -94,6 +110,13 @@ PROFILES={
    {'name':'intel/sof-ipc4/rpl/sof-rpl.ri','target':'oem','deb':'firmware-sof-signed','member':'usr/lib/firmware/intel/sof-ipc4/rpl/intel-signed/sof-rpl.ri','sha256':'351325786e53ca7cd23ffc1462d82913f3e0c08ad78f89053d85e4b6703cf12b','bytes':707036},
    {'name':'intel/sof-ipc4-tplg/sof-hda-generic-2ch.tplg','target':'oem','deb':'firmware-sof-signed','member':'usr/lib/firmware/intel/sof-ipc4-tplg/sof-hda-generic-2ch.tplg','sha256':'6d1313cf7311dcc47ccb78a05841f25da9640c4e87cb04a346ddf56f43f13f7b','bytes':60982},
    {'name':'firmware-sof-signed.copyright','target':'license','deb':'firmware-sof-signed','member':'usr/share/doc/firmware-sof-signed/copyright','sha256':'f769db7d9007c9e2c6aaa4076fc6604e771c88c685c2fda4045e0d0ab11ffc06','bytes':109946},
+   # CS35L41 speaker-protection firmware, as loaded by Ubuntu on this unit (SSID 103C8B63, 4 amps).
+   {'name':'cirrus/cs35l41-dsp1-spk-prot-103c8b63.wmfw','src':'cirrus/cs35l41/v6.61.1/halo_cspl_RAM_revB2_29.63.1.wmfw','target':'oem','sha256':'c11cb3e25825c673a955a3519370ad77fbcd8bcf68808e8e34140a70caefcec4','bytes':34068},
+   {'name':'cirrus/cs35l41-dsp1-spk-prot-103c8b63-l0.bin','target':'oem','sha256':'273abb7b27ff930b29903831b9e3961849f0478e4dada14e1b06aa7f0713d5bc','bytes':5408},
+   {'name':'cirrus/cs35l41-dsp1-spk-prot-103c8b63-r0.bin','target':'oem','sha256':'07cc98f864fc0a4df842b00daf9bf640ac0d118a3902c05f934b2d0db0389c3d','bytes':5408},
+   {'name':'cirrus/cs35l41-dsp1-spk-prot-103c8b63-l1.bin','target':'oem','sha256':'14d9db516818695bc6e88b40c9a4a4b53e213b6967ea71f524070bce5b868681','bytes':5448},
+   {'name':'cirrus/cs35l41-dsp1-spk-prot-103c8b63-r1.bin','target':'oem','sha256':'1c98637a6e347383db3051263933b8e9c143e0a168b40e6e5595f39256bae1f6','bytes':5448},
+   {'name':'LICENSE.cirrus','target':'license','sha256':'ff6e5ab98d3e3c50d9e750580059bc23a0663a5613659828d0536db44c38f4e0','bytes':26746},
    {'name':'LICENSE.i915','target':'license','sha256':'8542aeabf2761935122d693561e16766ce1bcc2b0d003204f9040b7d6d929f2e','bytes':2080},
    {'name':'LICENCE.iwlwifi_firmware','target':'license','sha256':'16d5040c7cf851fc693b7542e20870935b99802533ea1bfd231c377a2305e5c5','bytes':2046},
    {'name':'LICENCE.ibt_firmware','target':'license','sha256':'5181b0b51efc79d5acb2c9bb92042878fdbad97a92114d4ab5e32e2b5b52fce4','bytes':2040},
@@ -128,11 +151,11 @@ def fetch(entry,cache):
         if not path.exists():
             path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(deb_member(entry,cache))
     else:
-        path=cache/COMMIT/entry['name']
+        path=cache/COMMIT/entry.get('src',entry['name'])  # 'src': linux-firmware link target
     if not path.exists():
         path.parent.mkdir(parents=True,exist_ok=True);part=path.with_name(path.name+'.download')
-        print('Downloading',SOURCE+entry['name'],flush=True)
-        with urllib.request.urlopen(SOURCE+entry['name'],timeout=60) as r:part.write_bytes(r.read())
+        url=SOURCE+entry.get('src',entry['name']);print('Downloading',url,flush=True)
+        with urllib.request.urlopen(url,timeout=60) as r:part.write_bytes(r.read())
         part.rename(path)
     if path.stat().st_size!=entry['bytes'] or sha(path)!=entry['sha256']:
         raise ValueError('Pinned firmware mismatch: '+str(path))
@@ -287,13 +310,18 @@ def main():
         mods=profile.get('oem_modules',[])
         if mods and not a.gki_modules:raise ValueError('profile needs --gki-modules (tools/build_gki_modules.py output)')
         for m in mods:
+            if 'stock' in m:continue
             ko=a.gki_modules/m['file']
             if sha(ko)!=m['sha256']:raise ValueError('GKI module hash mismatch: %s'%ko)
             add_oem_file(tmp/'compat.ext4',ko,'/modules/'+m['file'],'vendor_file')
+        def insmods(stage):
+            return ''.join('    insmod %s\n'%(m.get('stock') or '/oem/modules/'+m['file']) for m in mods if m['stage']==stage)
         if profile.get('init_binds') or mods:
             binds=''.join('    mount none %s %s bind\n'%(s,d) for s,d in profile.get('init_binds',[]))
-            binds+=''.join('    insmod /oem/modules/%s\n'%m['file'] for m in mods)
+            binds+=insmods('early-init')
             replace_oem_text(tmp/'compat.ext4','/init.gbrunch.rc',INIT_ANCHOR,INIT_ANCHOR+binds)
+            late=insmods('post-fs-data')
+            if late:replace_oem_text(tmp/'compat.ext4','/init.gbrunch.rc','on post-fs-data\n','on post-fs-data\n'+late)
         if profile.get('logger_capture'):
             replace_oem_text(tmp/'compat.ext4','/gbrunch-logger.sh',LOGGER_ANCHOR,LOGGER_CAPTURE+LOGGER_ANCHOR)
         compat=sha(tmp/'compat.ext4')

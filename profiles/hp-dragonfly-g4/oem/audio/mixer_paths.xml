@@ -3,6 +3,15 @@
 	<!-- GBRUNCH hp-dragonfly-g4: control names and ranges from "amixer -c 0 contents" on the
 	target (ALC245 with the 103c:8b63 fixup, SOF sof-hda-generic-2ch). Volume maxima are 0 dB. -->
 	<ctl name="Auto-Mute Mode" value="Disabled" />
+	<!-- SOF topology (sof-hda-generic-2ch, IPC3) DSP volumes. Nothing on Android sets them; Ubuntu's
+	alsa/PipeWire state had playback PGAs at 32 (0 dB) and the DMIC PGA at 50. -->
+	<ctl name="PGA1.0 1 Master Playback Volume" value="32 32" />
+	<ctl name="PGA30.0 30 Playback Volume" value="32 32" />
+	<ctl name="PGA31.0 31 Playback Volume" value="32 32" />
+	<ctl name="PGA7.0 7 Master Playback Volume" value="32 32" />
+	<ctl name="PGA8.0 8 Master Playback Volume" value="32 32" />
+	<ctl name="PGA9.0 9 Master Playback Volume" value="32 32" />
+	<ctl name="PGA2.0 2 Master Capture Volume" value="50 50" />
 	<ctl name="Master Playback Switch" value="1" />
 	<ctl name="Master Playback Volume" value="87" />
 	<ctl name="Speaker Playback Switch" value="0 0" />

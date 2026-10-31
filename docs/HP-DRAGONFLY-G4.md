@@ -24,7 +24,7 @@ occurred. Which option is strictly needed has not been isolated; DPT is the prim
 | USB Ethernet (dock) | RTL8153 `0bda:8153` | r8152 + firmware | OK |
 | Audio | ALC245 via SOF `8086:51ca`, 2 DMICs | alc269 has the 103c:8b63 quirk; SOF firmware added by the profile | HDMI output works; no 3.5 mm jack on this model |
 | Charger | ACPI `ACPI0003` (AC) | out-of-tree `ac.ko` (profile) | Works |
-| Speakers | 4x CS35L41 on SPI0 (`CSC3551`, full `_DSD`) | no serial-multi-instantiate / snd-hda-scodec-cs35l41; required SPI symbols not exported by GKI | Not working: needs out-of-tree modules plus a shim |
+| Speakers | 4x CS35L41 on SPI0 (`CSC3551`, full `_DSD`) | out-of-tree `gbrunch_csc3551_spi` + upstream snd-hda-scodec-cs35l41 (profile) | Works, full volume (external boost fix) |
 | Camera | IPU6EP `8086:a75d`, hi556 + OVTI00AB, INT3472 | camera HAL is IPU7-only | Not working: use a USB UVC camera |
 | Hotkeys | intel_hid, hp_wmi | neither present | Some Fn keys missing |
 
@@ -103,7 +103,7 @@ partitions from the image when recovering a disk that has been through such a lo
      dropped the graphics memfd and shell rules: the panel went black and the launcher crashed.
   3. `audio_config.xml`: sections with `JackDev` also need `JackSwitch` (the error is "missing field `JackSwitch`").
      The Dragonfly has no 3.5 mm jack, so only InternalMic (PCM 6), Speaker (PCM 0) and HDMI1-3 (PCM 3-5) are listed.
-  Still missing: internal speakers (CS35L41 x4 need out-of-tree modules), and the internal microphone recording is untested.
+  Still missing: the internal microphone recording is untested.
 - Charging indicator: **works (physical test 2026-11-01).** Ruby's vendor modules ship ACPI `battery.ko` but not
   `ac.ko` (`Unable to find a module for acpi:ACPI0003`). The profile now loads an out-of-tree `ac.ko` from
   `/oem/modules` (init `insmod` in early-init, label `vendor_file`). The icon then switches between plugged and
@@ -118,5 +118,27 @@ partitions from the image when recovering a disk that has been through such a lo
   Ruby's own vendor modules.
 - External display: HDMI to a 1920x1080 TV works as an extended display. Booting with HDMI attached was not
   re-tested after the GBVENDOR policy fix.
-- Speakers: see the GKI export analysis in the profile notes. A shim must instantiate the four SPI amps through `spi_new_device`.
+- Speakers: **work, including full volume (physical test 2026-11-01).** The pieces, all loaded from `/oem/modules`
+  at post-fs-data in this order: stock `cs_dsp` and `snd-soc-cs-amp-lib`, then our builds of `snd-soc-cs35l41-lib`,
+  `gbrunch_csc3551_spi`, `snd-hda-scodec-cs35l41` and `snd-hda-scodec-cs35l41-spi`.
+  1. `gbrunch_csc3551_spi` replaces serial-multi-instantiate (its SPI helpers are not exported). It creates the four
+     amps with `spi_new_device`, sets the CSC3551 ACPI node as their fwnode, and gives them the upstream names
+     `spiN-CSC3551:00-cs35l41-hda.i`. The fwnode matters: CS1-3 are GPIO chip selects, and the SPI core drives them
+     with ACPI polarity only for ACPI nodes (otherwise amps 1-3 fail with "OTP Boot status 80000000"). It also passes
+     the shared `GpioInt` 0 (INTB) as the IRQ.
+  2. The upstream cs35l41 HDA sources build unmodified apart from call-site renames into
+     `gki-modules/compat/gbrunch_gki_compat.h`, which covers helpers the GKI does not export. `component_add` is a
+     protected export, so the header uses `component_add_typed(...,1)`. The error IRQs also go through the header,
+     because `regmap_irq_get_virq` is trimmed. Each error source is requested on the shared line and checks and acks
+     its own status bit. Without the IRQ a latched error silenced the amps until reboot. With it, they recover once
+     DRAS closes the stream (pause for about 10 s), as on mainline.
+  3. Boost type: the `_DSD` declares Internal Boost, but the board uses External Boost. With Internal Boost the
+     amps crackle and then latch "Amp short error" at moderate volume. Ubuntu's kernel does the same, even with
+     Speaker at -15 dB. `build_gki_modules.py` applies upstream "ALSA: hda: cs35l41: Fix boost type for HP Dragonfly
+     13.5 inch G4" (kernel bugzilla 219520), which is not in ACK `3938c8d97142`. The amps then bind with
+     `BST: 1, VSPK: 1` and play cleanly at maximum volume.
+  4. Our `snd-soc-cs35l41-lib` export CRCs differ from Ruby's vendor copy (different tree), so the stock lib must
+     not be loaded.
+  5. `mixer_paths.xml` sets the SOF topology PGAs to 0 dB (nothing on Android sets them). `/oem/audio/mixer_paths.xml`
+     is bound over `/vendor/etc/mixer_paths.xml`, so mixer changes need only a new GBRUNCH.
 - Do not publish `acpi/MSDM` from a hardware inventory; it contains the Windows product key.
