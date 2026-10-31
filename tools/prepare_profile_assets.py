@@ -41,7 +41,7 @@ INIT_ANCHOR='''    mount none /oem/weaver-manifest.xml /vendor/etc/vintf/manifes
 PROFILES={
  'hp-dragonfly-g4':{
   'board':'8B63',
-  'compat_sha256':'ba193c50bb8f92d9a81daf9448d18fccc93afe4a5bd5cfa567b3b94843e188a0',
+  'compat_sha256':'26d046edc88535794ca8395355462a06758b22300a5cda88b14d37c1073aec43',
   # Physical test 2026-10-31: with defaults the RPL-U eDP primary plane faulted
   # ("[PLANE:33:plane 1A] fault", Y-tiled XRGB via DPT) and the panel went black.
   # These xe display options removed every fault; setup and apps then worked.
@@ -67,6 +67,10 @@ PROFILES={
    {'path':'etc/mixer_paths.xml','src':'vendor/etc/mixer_paths.xml','template':'/etc/audio_policy_configuration.xml'},
    {'path':'etc/volume_curves.xml','copy_from':'/etc/audio/sof-rt5682_alc5682ivs_tas2563/volume_curves.xml','template':'/etc/audio_policy_configuration.xml'},
   ],
+  # Out-of-tree GKI modules from tools/build_gki_modules.py (--gki-modules DIR), loaded by init.
+  # ac.ko: ACPI0003 AC adapter. Ruby's vendor modules ship battery.ko but not ac.ko, so Android
+  # never saw the charger (AC powered: false).
+  'oem_modules':[{'file':'ac.ko','sha256':'773b704764e4b45ad853630c986634a54146ddcd65fbe5a0009ea6c421ffe680'}],
   'init_binds':[('/oem/audio/hal_audio.xml','/vendor/etc/data/hal_configs/audio_default.xml'),
                 ('/oem/audio/hal_audio.xml','/vendor/etc/data/hal_configs/audio_alc5682i_tas2563rppr.xml'),
                 ('/oem/audio/audio_config.xml','/vendor/etc/audio/sof-rt5682_alc5682ivs_tas2563/audio_config.xml'),
@@ -254,6 +258,7 @@ def main():
     p.add_argument('--assets',required=True,type=pathlib.Path,help='existing kit assets directory (read only)')
     p.add_argument('--output',required=True,type=pathlib.Path,help='NEW output assets directory')
     p.add_argument('--profile',default='hp-dragonfly-g4',choices=sorted(PROFILES))
+    p.add_argument('--gki-modules',type=pathlib.Path,help='output directory of tools/build_gki_modules.py')
     p.add_argument('--firmware-cache',type=pathlib.Path,default=pathlib.Path('profile-firmware-cache'))
     a=p.parse_args();src=a.assets.resolve();out=a.output.absolute();profile=PROFILES[a.profile]
     if out.exists() or out.is_symlink():p.error('Output must not exist')
@@ -279,8 +284,15 @@ def main():
             add_oem_file(tmp/'compat.ext4',PROFILE_DIR/a.profile/'oem'/rel,'/'+rel,label)
         if profile.get('vendor_files'):
             patch_tool_initrd(tmp/'tool-initrd.gz',profile['vendor_files'],PROFILE_DIR/a.profile)
-        if profile.get('init_binds'):
-            binds=''.join('    mount none %s %s bind\n'%(s,d) for s,d in profile['init_binds'])
+        mods=profile.get('oem_modules',[])
+        if mods and not a.gki_modules:raise ValueError('profile needs --gki-modules (tools/build_gki_modules.py output)')
+        for m in mods:
+            ko=a.gki_modules/m['file']
+            if sha(ko)!=m['sha256']:raise ValueError('GKI module hash mismatch: %s'%ko)
+            add_oem_file(tmp/'compat.ext4',ko,'/modules/'+m['file'],'vendor_file')
+        if profile.get('init_binds') or mods:
+            binds=''.join('    mount none %s %s bind\n'%(s,d) for s,d in profile.get('init_binds',[]))
+            binds+=''.join('    insmod /oem/modules/%s\n'%m['file'] for m in mods)
             replace_oem_text(tmp/'compat.ext4','/init.gbrunch.rc',INIT_ANCHOR,INIT_ANCHOR+binds)
         if profile.get('logger_capture'):
             replace_oem_text(tmp/'compat.ext4','/gbrunch-logger.sh',LOGGER_ANCHOR,LOGGER_CAPTURE+LOGGER_ANCHOR)

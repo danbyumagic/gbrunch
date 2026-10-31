@@ -23,6 +23,7 @@ occurred. Which option is strictly needed has not been isolated; DPT is the prim
 | Keyboard / touchpad | i8042 / SYNA310F I2C-HID | built in | OK |
 | USB Ethernet (dock) | RTL8153 `0bda:8153` | r8152 + firmware | OK |
 | Audio | ALC245 via SOF `8086:51ca`, 2 DMICs | alc269 has the 103c:8b63 quirk; SOF firmware added by the profile | HDMI output works; no 3.5 mm jack on this model |
+| Charger | ACPI `ACPI0003` (AC) | out-of-tree `ac.ko` (profile) | Works |
 | Speakers | 4x CS35L41 on SPI0 (`CSC3551`, full `_DSD`) | no serial-multi-instantiate / snd-hda-scodec-cs35l41; required SPI symbols not exported by GKI | Not working: needs out-of-tree modules plus a shim |
 | Camera | IPU6EP `8086:a75d`, hi556 + OVTI00AB, INT3472 | camera HAL is IPU7-only | Not working: use a USB UVC camera |
 | Hotkeys | intel_hid, hp_wmi | neither present | Some Fn keys missing |
@@ -103,9 +104,18 @@ partitions from the image when recovering a disk that has been through such a lo
   3. `audio_config.xml`: sections with `JackDev` also need `JackSwitch` (the error is "missing field `JackSwitch`").
      The Dragonfly has no 3.5 mm jack, so only InternalMic (PCM 6), Speaker (PCM 0) and HDMI1-3 (PCM 3-5) are listed.
   Still missing: internal speakers (CS35L41 x4 need out-of-tree modules), and the internal microphone recording is untested.
-- Charging indicator: Android sees only `BAT0`. Ruby's vendor modules ship ACPI `battery.ko` but not `ac.ko`
-  (`Unable to find a module for acpi:ACPI0003`), so `AC powered` stays false. This needs an out-of-tree `ac.ko`
-  built for the GKI android17-6.18 KMI, the same build environment as the speaker modules.
+- Charging indicator: **works (physical test 2026-11-01).** Ruby's vendor modules ship ACPI `battery.ko` but not
+  `ac.ko` (`Unable to find a module for acpi:ACPI0003`). The profile now loads an out-of-tree `ac.ko` from
+  `/oem/modules` (init `insmod` in early-init, label `vendor_file`). The icon then switches between plugged and
+  battery when the adapter is connected or removed.
+- Out-of-tree GKI modules: `tools/build_gki_modules.py` builds against the stock kernel. It uses the exact ACK
+  source `3938c8d97142` (git checkout), the pinned clang `r584948c` (compiler string identical to the stock config), the
+  stock config, and a Module.symvers that `tools/gki_symvers.py` takes from stock `__ksymtab/__kcrctab` and stock
+  modules' `__versions`. With no Rust toolchain, a one-line Kconfig change keeps `CC_HAS_KCFI_ARITY`
+  off as in the RUST=y stock build, which keeps the kCFI preambles identical. For example, `notify`/`resume` type hashes match
+  stock `battery.ko`. Outputs are stripped of debug info and build-id, so they are byte-reproducible. Every
+  import CRC is checked against the stock table. Unsigned modules are accepted (`MODULE_SIG_FORCE` off), as for
+  Ruby's own vendor modules.
 - External display: HDMI to a 1920x1080 TV works as an extended display. Booting with HDMI attached was not
   re-tested after the GBVENDOR policy fix.
 - Speakers: see the GKI export analysis in the profile notes. A shim must instantiate the four SPI amps through `spi_new_device`.

@@ -17,7 +17,8 @@ COMPAT_HASHES={COMPAT_HASH:'V7',
  '3270bfccb236eacd67232d96356296a69db65ae142bc4d18d86443a581542856':'V7 + hp-dragonfly-g4 profile + SOF audio (2ch/4ch topologies) + logger capture',
  '94474a03153f88eeb8cc8da372459e2b08714cd4a9e8b671e821ff14751f8232':'V7 + hp-dragonfly-g4 profile + SOF audio + DRAS card config + battery logging',
  '9a48c35b50d5db463064a983d95270ebc97b27731cc98115e435567badef2199':'V7 + hp-dragonfly-g4 profile + SOF audio + DRAS card config + audio/battery logging',
- 'ba193c50bb8f92d9a81daf9448d18fccc93afe4a5bd5cfa567b3b94843e188a0':'V7 + hp-dragonfly-g4 profile + SOF audio + DRAS config without jack sections + logging'}
+ 'ba193c50bb8f92d9a81daf9448d18fccc93afe4a5bd5cfa567b3b94843e188a0':'V7 + hp-dragonfly-g4 profile + SOF audio + DRAS config without jack sections + logging',
+ '26d046edc88535794ca8395355462a06758b22300a5cda88b14d37c1073aec43':'V7 + hp-dragonfly-g4 profile + audio + out-of-tree ac.ko'}
 SOURCE_GUIDS={'GBRUNCH':'4ab7c001-7400-4bab-b412-43cbd52b9fb1','GBVENDOR':'4ab7c002-7400-4bab-b412-43cbd52b9fb1','GBLOG':'4ab7c003-7400-4bab-b412-43cbd52b9fb1'}
 EXPECTED={'userdata','KERN-A','super','KERN-B','ROOT-B','KERN-C','ROOT-C','OEM','ota_recovery_a','ota_recovery_b','EFI-SYSTEM','boot_a','boot_b','vbmeta_a','vbmeta_b','metadata','init_boot_a','init_boot_b','vendor_boot_a','vendor_boot_b','pvmfw_a','pvmfw_b','misc','RWFW-A','RWFW-B','recovery_a','recovery_b','desktop_security_persist','desktop_security_storage','frp_persist','GBRUNCH','GBVENDOR','GBLOG'}
 def require(value,message):
