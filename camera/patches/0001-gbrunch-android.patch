@@ -1,0 +1,1178 @@
+diff --git a/include/libcamera/internal/software_isp/software_isp.h b/include/libcamera/internal/software_isp/software_isp.h
+index b6491063..e3d18eb8 100644
+--- a/include/libcamera/internal/software_isp/software_isp.h
++++ b/include/libcamera/internal/software_isp/software_isp.h
+@@ -102,6 +102,8 @@ private:
+ 	DmaBufAllocator dmaHeap_;
+ 	bool ccmEnabled_;
+ 	bool lscEnabled_;
++	/* GBRUNCH: per-plane sizes of exported output buffers (NV12: luma, then CbCr). */
++	std::vector<unsigned int> outputPlaneSizes_;
+ 
+ 	std::unique_ptr<ipa::softisp::IPAProxySoftIsp> ipa_;
+ 	std::deque<FrameBuffer *> queuedInputBuffers_;
+diff --git a/src/android/camera_capabilities.cpp b/src/android/camera_capabilities.cpp
+index 00976f96..50163652 100644
+--- a/src/android/camera_capabilities.cpp
++++ b/src/android/camera_capabilities.cpp
+@@ -502,8 +502,19 @@ int CameraCapabilities::initializeStreamConfigurations()
+ 	 * \todo JPEG - Adjust the maximum available resolution by taking the
+ 	 * JPEG encoder requirements into account (alignment and aspect ratio).
+ 	 */
++#ifdef GBRUNCH_TRUST_IPA
++	/*
++	 * GBRUNCH: cap the output at half the full resolution, the sensor's 2x2 binned mode.
++	 * The software ISP debayers every frame on the CPU, and the camera app always
++	 * configures a maximum-size JPEG stream, so a full-resolution maximum keeps the
++	 * whole session at full resolution (hi556: ~1.5 cores instead of ~0.4).
++	 */
++	const Size maxRes(cfg.size.width / 2 & ~1u, cfg.size.height / 2 & ~1u);
++#else
+ 	const Size maxRes = cfg.size;
++#endif
+ 	LOG(HAL, Debug) << "Maximum supported resolution: " << maxRes;
++	maxResolution_ = maxRes;
+ 
+ 	/*
+ 	 * Build the list of supported image resolutions.
+@@ -1349,8 +1360,18 @@ int CameraCapabilities::initializeStaticMetadata()
+ 		unsigned int fps =
+ 			static_cast<unsigned int>(floor(1e9 / entry.minFrameDurationNsec));
+ 
++#ifdef GBRUNCH_TRUST_IPA
++		/*
++		 * GBRUNCH: hi556's binned modes report a 55 ms minimum frame duration from their
++		 * V4L2 blanking limits, yet stream at 30 fps. A 30 fps floor would drop every
++		 * preview size, and the camera app then rejects the camera.
++		 */
++		if (entry.androidFormat != HAL_PIXEL_FORMAT_BLOB && fps < 15)
++			continue;
++#else
+ 		if (entry.androidFormat != HAL_PIXEL_FORMAT_BLOB && fps < 30)
+ 			continue;
++#endif
+ 
+ 		/*
+ 		 * Collect the FPS of the maximum YUV output size to populate
+diff --git a/src/android/camera_capabilities.h b/src/android/camera_capabilities.h
+index 56ac1efe..ae2d2aea 100644
+--- a/src/android/camera_capabilities.h
++++ b/src/android/camera_capabilities.h
+@@ -31,6 +31,7 @@ public:
+ 	CameraMetadata *staticMetadata() const { return staticMetadata_.get(); }
+ 	libcamera::PixelFormat toPixelFormat(int format) const;
+ 	unsigned int maxJpegBufferSize() const { return maxJpegBufferSize_; }
++	const libcamera::Size &maxResolution() const { return maxResolution_; }
+ 
+ 	std::unique_ptr<CameraMetadata> requestTemplateManual() const;
+ 	std::unique_ptr<CameraMetadata> requestTemplatePreview() const;
+@@ -79,6 +80,7 @@ private:
+ 	std::map<int, libcamera::PixelFormat> formatsMap_;
+ 	std::unique_ptr<CameraMetadata> staticMetadata_;
+ 	unsigned int maxJpegBufferSize_;
++	libcamera::Size maxResolution_;
+ 
+ 	std::set<int32_t> availableCharacteristicsKeys_;
+ 	std::set<int32_t> availableRequestKeys_;
+diff --git a/src/android/camera_device.cpp b/src/android/camera_device.cpp
+index 74981af9..d0606ebe 100644
+--- a/src/android/camera_device.cpp
++++ b/src/android/camera_device.cpp
+@@ -11,6 +11,7 @@
+ #include <fstream>
+ #include <set>
+ #include <sys/mman.h>
++#include <time.h>
+ #include <unistd.h>
+ #include <vector>
+ 
+@@ -704,6 +705,71 @@ int CameraDevice::configureStreams(camera3_stream_configuration_t *stream_list)
+ 		streamConfigs[index].streams.push_back({ jpegStream, type });
+ 	}
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	/*
++	 * GBRUNCH: the simple pipeline's software ISP has a single output. Configure only the
++	 * largest stream and produce every other Android stream from it: YUV by downscaling,
++	 * JPEG by encoding (a JPEG stream must match the source size).
++	 */
++	if (streamConfigs.size() > 1) {
++		auto area = [](const Camera3StreamConfig &c) {
++			return c.config.size.width * c.config.size.height;
++		};
++		size_t largest = 0;
++		for (size_t i = 1; i < streamConfigs.size(); ++i)
++			if (area(streamConfigs[i]) > area(streamConfigs[largest]))
++				largest = i;
++
++		Camera3StreamConfig merged = std::move(streamConfigs[largest]);
++		merged.streams[0].stream->usage |= GRALLOC_USAGE_SW_READ_OFTEN;
++		for (size_t i = 0; i < streamConfigs.size(); ++i) {
++			if (i == largest)
++				continue;
++			for (auto &s : streamConfigs[i].streams) {
++				s.stream->usage |= GRALLOC_USAGE_SW_WRITE_OFTEN;
++				merged.streams.push_back({ s.stream, CameraStream::Type::Mapped });
++			}
++		}
++		streamConfigs.clear();
++		streamConfigs.push_back(std::move(merged));
++		LOG(HAL, Info) << "Single-output pipeline: all streams from "
++			       << streamConfigs[0].config.toString();
++	}
++
++	/*
++	 * GBRUNCH: keep the source within the reported maximum (the binned mode). Apps may
++	 * still configure larger streams (a remembered 1080p video size); scale the source
++	 * down keeping the aspect ratio, so the ISP crops the right field of view, and let
++	 * the post-processors scale each Android stream up or down.
++	 */
++	for (auto &streamConfig : streamConfigs) {
++		Size &size = streamConfig.config.size;
++		const Size &maxRes = capabilities_.maxResolution();
++		if (maxRes.isNull() || (size.width <= maxRes.width && size.height <= maxRes.height))
++			continue;
++		double scale = std::min(static_cast<double>(maxRes.width) / size.width,
++					static_cast<double>(maxRes.height) / size.height);
++		Size clamped(static_cast<unsigned int>(size.width * scale) & ~3u,
++			     static_cast<unsigned int>(size.height * scale) & ~1u);
++		LOG(HAL, Info) << "Source " << size << " clamped to " << clamped;
++		size = clamped;
++	}
++
++	/*
++	 * GBRUNCH: never let the software ISP write into gralloc buffers directly: it uses
++	 * its own stride, not the buffer's (minigbm pads to 64 bytes). Render into pipeline
++	 * buffers and copy, through the YUV post-processor, at the gralloc stride.
++	 */
++	for (auto &streamConfig : streamConfigs) {
++		for (auto &s : streamConfig.streams) {
++			if (s.type == CameraStream::Type::Direct) {
++				s.type = CameraStream::Type::Internal;
++				s.stream->usage |= GRALLOC_USAGE_SW_WRITE_OFTEN;
++			}
++		}
++	}
++#endif
++
+ 	sortCamera3StreamConfigs(streamConfigs, jpegStream);
+ 	for (const auto &streamConfig : streamConfigs) {
+ 		config->addConfiguration(streamConfig.config);
+@@ -725,9 +791,19 @@ int CameraDevice::configureStreams(camera3_stream_configuration_t *stream_list)
+ 			 */
+ 			if (stream.type == CameraStream::Type::Direct)
+ 				sourceStream = &streams_.back();
++#ifdef GBRUNCH_TRUST_IPA
++			/* An internal (JPEG source) stream can also feed mapped streams. */
++			else if (stream.type == CameraStream::Type::Internal && !sourceStream)
++				sourceStream = &streams_.back();
++#endif
+ 		}
+ 	}
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	std::vector<std::pair<Size, PixelFormat>> requested;
++	for (const StreamConfiguration &cfg : *config)
++		requested.emplace_back(cfg.size, cfg.pixelFormat);
++#endif
+ 	switch (config->validate()) {
+ 	case CameraConfiguration::Valid:
+ 		break;
+@@ -737,6 +813,20 @@ int CameraDevice::configureStreams(camera3_stream_configuration_t *stream_list)
+ 		for (const StreamConfiguration &cfg : *config)
+ 			LOG(HAL, Info) << " - " << cfg.toString();
+ 
++#ifdef GBRUNCH_TRUST_IPA
++		/*
++		 * GBRUNCH: the HAL leaves the colour space unset and the pipeline fills it in.
++		 * Accept that; only a changed size or pixel format breaks the Android streams.
++		 */
++		{
++			bool same = config->size() == requested.size();
++			for (unsigned int i = 0; same && i < config->size(); i++)
++				same = config->at(i).size == requested[i].first &&
++				       config->at(i).pixelFormat == requested[i].second;
++			if (same)
++				break;
++		}
++#endif
+ 		return -EINVAL;
+ 	case CameraConfiguration::Invalid:
+ 		LOG(HAL, Info) << "Camera configuration invalid";
+@@ -1077,6 +1167,12 @@ int CameraDevice::processCaptureRequest(camera3_capture_request_t *camera3Reques
+ 		 */
+ 		FrameBuffer *frameBuffer = cameraStream->getBuffer();
+ 		buffer.internalBuffer = frameBuffer;
++#ifdef GBRUNCH_TRUST_IPA
++		if (!frameBuffer) {
++			LOG(HAL, Error) << "Failed to get a source buffer for a mapped stream";
++			return -ENOMEM;
++		}
++#endif
+ 
+ 		descriptor->request_->addBuffer(sourceStream->stream(),
+ 						frameBuffer);
+@@ -1190,6 +1286,29 @@ void CameraDevice::requestComplete(Request *request)
+ 	uint64_t sensorTimestamp = static_cast<uint64_t>(request->metadata()
+ 								 .get(controls::SensorTimestamp)
+ 								 .value_or(0));
++#ifdef GBRUNCH_TRUST_IPA
++	/*
++	 * GBRUNCH: the camera service keeps a request in flight until its shutter has a
++	 * non-zero timestamp, so a request completed without SensorTimestamp (seen when
++	 * the session stops) made the service's drain time out on close. Fall back to a
++	 * buffer timestamp, then to the current boot-time clock.
++	 */
++	if (!sensorTimestamp) {
++		for (const auto &[stream, fb] : request->buffers()) {
++			if (fb->metadata().timestamp) {
++				sensorTimestamp = fb->metadata().timestamp;
++				break;
++			}
++		}
++	}
++	if (!sensorTimestamp) {
++		struct timespec ts;
++		clock_gettime(CLOCK_BOOTTIME, &ts);
++		sensorTimestamp = static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL + ts.tv_nsec;
++		LOG(HAL, Warning) << "Request " << descriptor->frameNumber_
++				  << " has no sensor timestamp; using the current time";
++	}
++#endif
+ 	notifyShutter(descriptor->frameNumber_, sensorTimestamp);
+ 
+ 	LOG(HAL, Debug) << "Request " << request->cookie() << " completed with "
+diff --git a/src/android/camera_stream.cpp b/src/android/camera_stream.cpp
+index 7da01dc3..713efec8 100644
+--- a/src/android/camera_stream.cpp
++++ b/src/android/camera_stream.cpp
+@@ -131,6 +131,24 @@ int CameraStream::configure()
+ 	allocator_ = std::make_unique<PlatformFrameBufferAllocator>(cameraDevice_);
+ 	mutex_ = std::make_unique<Mutex>();
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	/*
++	 * GBRUNCH: gralloc buffers are assumed to be tightly packed, which the software ISP's
++	 * output need not match. Take the internal and mapped-source buffers from the pipeline.
++	 */
++	if (type_ == Type::Internal || type_ == Type::Mapped) {
++		pipelineAllocator_ = std::make_unique<FrameBufferAllocator>(cameraDevice_->camera());
++		int count = pipelineAllocator_->allocate(stream());
++		if (count <= 0) {
++			LOG(HAL, Error) << "Failed to allocate pipeline buffers: " << count;
++			return count < 0 ? count : -ENOMEM;
++		}
++		MutexLocker locker(*mutex_);
++		for (const auto &buffer : pipelineAllocator_->buffers(stream()))
++			buffers_.push_back(buffer.get());
++	}
++#endif
++
+ 	camera3Stream_->max_buffers = configuration().bufferCount;
+ 
+ 	return 0;
+@@ -183,8 +201,19 @@ int CameraStream::process(Camera3RequestDescriptor::StreamBuffer *streamBuffer)
+ 	}
+ 
+ 	const StreamConfiguration &output = configuration();
++	Size dstSize = output.size;
++#ifdef GBRUNCH_TRUST_IPA
++	/* GBRUNCH: a mapped YUV stream may be smaller than its source; map the Android buffer at its own size. */
++	PixelFormat dstFormat = output.pixelFormat;
++	if (camera3Stream_->format != HAL_PIXEL_FORMAT_BLOB)
++		dstSize = Size(camera3Stream_->width, camera3Stream_->height);
++	else
++		dstFormat = formats::MJPEG; /* one plane: the whole BLOB buffer */
++#else
++	PixelFormat dstFormat = output.pixelFormat;
++#endif
+ 	streamBuffer->dstBuffer = std::make_unique<CameraBuffer>(
+-		*streamBuffer->camera3Buffer, output.pixelFormat, output.size,
++		*streamBuffer->camera3Buffer, dstFormat, dstSize,
+ 		PROT_READ | PROT_WRITE);
+ 	if (!streamBuffer->dstBuffer->isValid()) {
+ 		LOG(HAL, Error) << "Failed to create destination buffer";
+@@ -211,6 +240,12 @@ FrameBuffer *CameraStream::getBuffer()
+ 
+ 	MutexLocker locker(*mutex_);
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	if (pipelineAllocator_ && buffers_.empty()) {
++		LOG(HAL, Error) << "No free pipeline buffer";
++		return nullptr;
++	}
++#endif
+ 	if (buffers_.empty()) {
+ 		/*
+ 		 * Use HAL_PIXEL_FORMAT_YCBCR_420_888 unconditionally.
+diff --git a/src/android/camera_stream.h b/src/android/camera_stream.h
+index 395552da..c49a293e 100644
+--- a/src/android/camera_stream.h
++++ b/src/android/camera_stream.h
+@@ -18,6 +18,7 @@
+ 
+ #include <libcamera/camera.h>
+ #include <libcamera/framebuffer.h>
++#include <libcamera/framebuffer_allocator.h>
+ #include <libcamera/geometry.h>
+ #include <libcamera/pixel_format.h>
+ 
+@@ -174,6 +175,8 @@ private:
+ 	const unsigned int index_;
+ 
+ 	std::unique_ptr<PlatformFrameBufferAllocator> allocator_;
++	/* GBRUNCH: source buffers from the pipeline itself, so their stride matches the ISP output. */
++	std::unique_ptr<libcamera::FrameBufferAllocator> pipelineAllocator_;
+ 	std::vector<std::unique_ptr<libcamera::FrameBuffer>> allocatedBuffers_;
+ 	std::vector<libcamera::FrameBuffer *> buffers_ LIBCAMERA_TSA_GUARDED_BY(mutex_);
+ 	/*
+diff --git a/src/android/jpeg/encoder_libjpeg.cpp b/src/android/jpeg/encoder_libjpeg.cpp
+index e988bcd6..4588986e 100644
+--- a/src/android/jpeg/encoder_libjpeg.cpp
++++ b/src/android/jpeg/encoder_libjpeg.cpp
+@@ -98,6 +98,8 @@ int EncoderLibJpeg::configure(const StreamConfiguration &cfg)
+ 	jpeg_set_defaults(&compress_);
+ 
+ 	pixelFormatInfo_ = &info.pixelFormatInfo;
++	/* GBRUNCH: the source stride (the software ISP aligns rows to 8 bytes: 1292 -> 1296). */
++	stride_ = cfg.stride;
+ 
+ 	nv_ = pixelFormatInfo_->numPlanes() == 2;
+ 	nvSwap_ = info.nvSwap;
+@@ -110,6 +112,8 @@ void EncoderLibJpeg::compressRGB(const std::vector<std::span<uint8_t>> &planes)
+ 	unsigned char *src = const_cast<unsigned char *>(planes[0].data());
+ 	/* \todo Stride information should come from buffer configuration. */
+ 	unsigned int stride = pixelFormatInfo_->stride(compress_.image_width, 0);
++	if (stride_)
++		stride = stride_;
+ 
+ 	JSAMPROW row_pointer[1];
+ 
+@@ -139,6 +143,10 @@ void EncoderLibJpeg::compressNV(const std::vector<std::span<uint8_t>> &planes)
+ 	unsigned int c_stride = pixelFormatInfo_->stride(compress_.image_width, 1);
+ 
+ 	unsigned int horzSubSample = 2 * compress_.image_width / c_stride;
++	if (stride_) {
++		y_stride = stride_;
++		c_stride = stride_;
++	}
+ 	unsigned int vertSubSample = pixelFormatInfo_->planes[1].verticalSubSampling;
+ 
+ 	unsigned int c_inc = horzSubSample == 1 ? 2 : 0;
+diff --git a/src/android/jpeg/encoder_libjpeg.h b/src/android/jpeg/encoder_libjpeg.h
+index 87836647..53b65482 100644
+--- a/src/android/jpeg/encoder_libjpeg.h
++++ b/src/android/jpeg/encoder_libjpeg.h
+@@ -40,5 +40,6 @@ private:
+ 	const libcamera::PixelFormatInfo *pixelFormatInfo_;
+ 
+ 	bool nv_;
++	unsigned int stride_ = 0;
+ 	bool nvSwap_;
+ };
+diff --git a/src/android/jpeg/post_processor_jpeg.cpp b/src/android/jpeg/post_processor_jpeg.cpp
+index 222fcdb0..0e93bf19 100644
+--- a/src/android/jpeg/post_processor_jpeg.cpp
++++ b/src/android/jpeg/post_processor_jpeg.cpp
+@@ -23,6 +23,10 @@
+ 
+ #include <libcamera/formats.h>
+ 
++#include <libyuv/scale.h>
++
++#include "libcamera/internal/mapped_framebuffer.h"
++
+ using namespace libcamera;
+ using namespace std::chrono_literals;
+ 
+@@ -36,7 +40,13 @@ PostProcessorJpeg::PostProcessorJpeg(CameraDevice *const device)
+ int PostProcessorJpeg::configure(const StreamConfiguration &inCfg,
+ 				 const StreamConfiguration &outCfg)
+ {
++#ifdef GBRUNCH_TRUST_IPA
++	sourceSize_ = inCfg.size;
++	sourceStride_ = inCfg.stride;
++	if (inCfg.size != outCfg.size && inCfg.pixelFormat != formats::NV12) {
++#else
+ 	if (inCfg.size != outCfg.size) {
++#endif
+ 		LOG(JPEG, Error) << "Mismatch of input and output stream sizes";
+ 		return -EINVAL;
+ 	}
+@@ -49,6 +59,18 @@ int PostProcessorJpeg::configure(const StreamConfiguration &inCfg,
+ 	streamSize_ = outCfg.size;
+ 
+ 	thumbnailer_.configure(inCfg.size, inCfg.pixelFormat);
++	thumbnailer_.setStride(inCfg.stride);
++#ifdef GBRUNCH_TRUST_IPA
++	if (inCfg.size != outCfg.size) {
++		StreamConfiguration scaledCfg = inCfg;
++		scaledCfg.size = outCfg.size;
++		scaledCfg.stride = outCfg.size.width;
++		scaled_.resize(outCfg.size.width * outCfg.size.height * 3 / 2);
++		encoder_ = std::make_unique<EncoderLibJpeg>();
++		return encoder_->configure(scaledCfg);
++	}
++	scaled_.clear();
++#endif
+ 
+ #if defined(OS_CHROMEOS)
+ 	encoder_ = std::make_unique<EncoderJea>();
+@@ -202,7 +224,29 @@ void PostProcessorJpeg::process(Camera3RequestDescriptor::StreamBuffer *streamBu
+ 	const uint8_t quality = ret ? *entry.data.u8 : 95;
+ 	resultMetadata->addEntry(ANDROID_JPEG_QUALITY, quality);
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	int jpeg_size;
++	if (!scaled_.empty()) {
++		const MappedFrameBuffer src(&source, MappedFrameBuffer::MapFlag::Read);
++		if (!src.isValid() || src.planes().size() < 2) {
++			LOG(JPEG, Error) << "Failed to map the source for scaling";
++			processComplete.emit(streamBuffer, PostProcessor::Status::Error);
++			return;
++		}
++		const unsigned int w = streamSize_.width, h = streamSize_.height;
++		uint8_t *y = scaled_.data(), *uv = scaled_.data() + w * h;
++		libyuv::NV12Scale(src.planes()[0].data(), sourceStride_, src.planes()[1].data(),
++				  sourceStride_, sourceSize_.width, sourceSize_.height,
++				  y, w, uv, w, w, h, libyuv::FilterMode::kFilterBilinear);
++		std::vector<std::span<uint8_t>> planes = { { y, w * h }, { uv, w * h / 2 } };
++		jpeg_size = static_cast<EncoderLibJpeg *>(encoder_.get())
++				    ->encode(planes, destination->plane(0), exif.data(), quality);
++	} else {
++		jpeg_size = encoder_->encode(streamBuffer, exif.data(), quality);
++	}
++#else
+ 	int jpeg_size = encoder_->encode(streamBuffer, exif.data(), quality);
++#endif
+ 	if (jpeg_size < 0) {
+ 		LOG(JPEG, Error) << "Failed to encode stream image";
+ 		processComplete.emit(streamBuffer, PostProcessor::Status::Error);
+diff --git a/src/android/jpeg/post_processor_jpeg.h b/src/android/jpeg/post_processor_jpeg.h
+index 6fe21457..9751d023 100644
+--- a/src/android/jpeg/post_processor_jpeg.h
++++ b/src/android/jpeg/post_processor_jpeg.h
+@@ -33,6 +33,10 @@ private:
+ 	CameraDevice *const cameraDevice_;
+ 	std::unique_ptr<Encoder> encoder_;
+ 	libcamera::Size streamSize_;
++	/* GBRUNCH: source different from the JPEG size: scale into scaled_ first. */
++	libcamera::Size sourceSize_;
++	unsigned int sourceStride_ = 0;
++	std::vector<uint8_t> scaled_;
+ 	EncoderLibJpeg thumbnailEncoder_;
+ 	Thumbnailer thumbnailer_;
+ };
+diff --git a/src/android/jpeg/thumbnailer.cpp b/src/android/jpeg/thumbnailer.cpp
+index adafc468..f16a21d8 100644
+--- a/src/android/jpeg/thumbnailer.cpp
++++ b/src/android/jpeg/thumbnailer.cpp
+@@ -55,6 +55,7 @@ void Thumbnailer::createThumbnail(const FrameBuffer &source,
+ 	}
+ 
+ 	const unsigned int sw = sourceSize_.width;
++	const unsigned int ss = stride_ ? stride_ : sw; /* source row stride */
+ 	const unsigned int sh = sourceSize_.height;
+ 	const unsigned int tw = targetSize.width;
+ 	const unsigned int th = targetSize.height;
+@@ -77,17 +78,17 @@ void Thumbnailer::createThumbnail(const FrameBuffer &source,
+ 		unsigned int sourceY = (sh * y + th / 2) / th;
+ 
+ 		dstY = dst + y * tw;
+-		srcY = src + sw * sourceY;
+-		srcCb = srcC + (sourceY / 2) * sw + 0;
+-		srcCr = srcC + (sourceY / 2) * sw + 1;
++		srcY = src + ss * sourceY;
++		srcCb = srcC + (sourceY / 2) * ss + 0;
++		srcCr = srcC + (sourceY / 2) * ss + 1;
+ 
+ 		for (unsigned int x = 0; x < tw; x += 2) {
+ 			unsigned int sourceX = (sw * x + tw / 2) / tw;
+ 
+ 			dstY[x] = srcY[sourceX];
+-			dstY[tw + x] = srcY[sw + sourceX];
++			dstY[tw + x] = srcY[ss + sourceX];
+ 			dstY[x + 1] = srcY[sourceX + 1];
+-			dstY[tw + x + 1] = srcY[sw + sourceX + 1];
++			dstY[tw + x + 1] = srcY[ss + sourceX + 1];
+ 
+ 			dstC[(y / 2) * tw + x + 0] = srcCb[(sourceX / 2) * 2];
+ 			dstC[(y / 2) * tw + x + 1] = srcCr[(sourceX / 2) * 2];
+diff --git a/src/android/jpeg/thumbnailer.h b/src/android/jpeg/thumbnailer.h
+index 1b836e59..30de75dd 100644
+--- a/src/android/jpeg/thumbnailer.h
++++ b/src/android/jpeg/thumbnailer.h
+@@ -23,10 +23,12 @@ public:
+ 			     const libcamera::Size &targetSize,
+ 			     std::vector<unsigned char> *dest);
+ 	const libcamera::PixelFormat &pixelFormat() const { return pixelFormat_; }
++	void setStride(unsigned int stride) { stride_ = stride; }
+ 
+ private:
+ 	libcamera::PixelFormat pixelFormat_;
+ 	libcamera::Size sourceSize_;
++	unsigned int stride_ = 0;
+ 
+ 	bool valid_;
+ };
+diff --git a/src/android/meson.build b/src/android/meson.build
+index 163d8458..9db12e80 100644
+--- a/src/android/meson.build
++++ b/src/android/meson.build
+@@ -50,6 +50,14 @@ android_camera_metadata = static_library('camera_metadata',
+                                          c_args : '-Wno-shadow',
+                                          include_directories : android_includes)
+ 
++# GBRUNCH: use the platform's libcamera_metadata (LLNDK) when provided, so request metadata built
++# by the camera provider and this HAL share one implementation and layout.
++platform_camera_metadata = dependency('libcamera_metadata', required : false)
++if platform_camera_metadata.found()
++    android_deps += [platform_camera_metadata]
++    android_camera_metadata = []
++endif
++
+ libcamera_hal = shared_library('libcamera-hal',
+                                android_hal_sources,
+                                name_prefix : '',
+diff --git a/src/android/mm/generic_camera_buffer.cpp b/src/android/mm/generic_camera_buffer.cpp
+index 4aeb2547..c9539292 100644
+--- a/src/android/mm/generic_camera_buffer.cpp
++++ b/src/android/mm/generic_camera_buffer.cpp
+@@ -7,10 +7,15 @@
+ 
+ #include "../camera_buffer.h"
+ 
++#include <sstream>
++#include <string.h>
++#include <string>
+ #include <sys/mman.h>
++#include <sys/stat.h>
+ #include <unistd.h>
+ 
+ #include <libcamera/base/log.h>
++#include <libcamera/formats.h>
+ 
+ #include "libcamera/internal/formats.h"
+ #include "libcamera/internal/mapped_framebuffer.h"
+@@ -75,12 +80,56 @@ CameraBuffer::Private::Private([[maybe_unused]] CameraBuffer *cameraBuffer,
+ 	 * now that the buffer is backed by a single dmabuf, with planes being
+ 	 * stored contiguously.
+ 	 */
++#ifdef GBRUNCH_TRUST_IPA
++	static bool loggedFds = false;
++	if (!loggedFds) {
++		loggedFds = true;
++		std::ostringstream fds;
++		for (int i = 0; i < camera3Buffer->numFds; i++) {
++			char link[64] = {};
++			std::string path = "/proc/self/fd/" + std::to_string(camera3Buffer->data[i]);
++			readlink(path.c_str(), link, sizeof(link) - 1);
++			fds << " [" << camera3Buffer->data[i] << " " << link << "]";
++		}
++		LOG(HAL, Info) << "gralloc handle fds:" << fds.str();
++	}
++#endif
+ 	for (int i = 0; i < camera3Buffer->numFds; i++) {
+ 		if (camera3Buffer->data[i] == -1 || camera3Buffer->data[i] == fd_)
+ 			continue;
+ 
++#ifdef GBRUNCH_TRUST_IPA
++		/*
++		 * GBRUNCH: minigbm passes the buffer dmabuf first (one dup per plane for
++		 * multi-planar formats), then a separate dmabuf for its metadata region.
++		 * Skip the dups and stop at the first other dmabuf. A BLOB buffer then
++		 * has a single fd even when mapped with a multi-planar source format.
++		 */
++		if (fd_ != -1) {
++			struct stat a, b;
++			if (fstat(fd_, &a) == 0 && fstat(camera3Buffer->data[i], &b) == 0 &&
++			    a.st_dev == b.st_dev && a.st_ino == b.st_ino)
++				continue;
++			break;
++		}
++#endif
+ 		if (fd_ != -1) {
+ 			error_ = -EINVAL;
++#ifdef GBRUNCH_TRUST_IPA
++			{
++				std::ostringstream d;
++				for (int j = 0; j < camera3Buffer->numFds; j++) {
++					struct stat st = {};
++					char link[64] = {};
++					std::string path = "/proc/self/fd/" + std::to_string(camera3Buffer->data[j]);
++					readlink(path.c_str(), link, sizeof(link) - 1);
++					fstat(camera3Buffer->data[j], &st);
++					d << " [" << camera3Buffer->data[j] << " " << link << " ino " << st.st_ino << "]";
++				}
++				LOG(HAL, Error) << pixelFormat << " " << size << " planes " << info.numPlanes()
++						<< " fds:" << d.str();
++			}
++#endif
+ 			LOG(HAL, Error) << "Discontiguous planes are not supported";
+ 			return;
+ 		}
+@@ -94,6 +143,19 @@ CameraBuffer::Private::Private([[maybe_unused]] CameraBuffer *cameraBuffer,
+ 		return;
+ 	}
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	/* GBRUNCH diagnostics: the gralloc handle's integers once (minigbm: strides, offsets, sizes, ...). */
++	static bool logged = false;
++	if (!logged) {
++		logged = true;
++		std::ostringstream ints;
++		for (int i = 0; i < camera3Buffer->numInts && i < 24; i++)
++			ints << " " << camera3Buffer->data[camera3Buffer->numFds + i];
++		LOG(HAL, Info) << "gralloc handle " << size << " " << pixelFormat << ": numFds "
++			       << camera3Buffer->numFds << " numInts " << camera3Buffer->numInts
++			       << " ints" << ints.str();
++	}
++#endif
+ 	bufferLength_ = lseek(fd_, 0, SEEK_END);
+ 	if (bufferLength_ < 0) {
+ 		error_ = -errno;
+@@ -104,6 +166,44 @@ CameraBuffer::Private::Private([[maybe_unused]] CameraBuffer *cameraBuffer,
+ 	const unsigned int numPlanes = info.numPlanes();
+ 	planeInfo_.resize(numPlanes);
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	/* GBRUNCH: a JPEG (BLOB) buffer is one plane covering the whole buffer. */
++	if (pixelFormat == libcamera::formats::MJPEG) {
++		planeInfo_.resize(1);
++		planeInfo_[0].stride = 0;
++		planeInfo_[0].offset = 0;
++		planeInfo_[0].size = bufferLength_;
++		return;
++	}
++#endif
++
++#ifdef GBRUNCH_TRUST_IPA
++	/*
++	 * GBRUNCH: read the real layout from a minigbm (cros_gralloc) handle. Its ints
++	 * start with the unused fd slots of fds[DRV_MAX_FDS = 5], then strides[4],
++	 * offsets[4], sizes[4], id, width, height, DRM format. minigbm pads strides
++	 * (64 bytes on Xe: 1292 -> 1344), which the packed layout below would miss.
++	 */
++	{
++		const int *ints = &camera3Buffer->data[camera3Buffer->numFds];
++		const int b = 5 - camera3Buffer->numFds;
++		if (b >= 0 && camera3Buffer->numInts >= b + 15 && numPlanes <= 4 &&
++		    ints[b + 13] == static_cast<int>(size.width) &&
++		    ints[b + 14] == static_cast<int>(size.height)) {
++			bool ok = true;
++			for (unsigned int i = 0; i < numPlanes; ++i) {
++				planeInfo_[i].stride = ints[b + i];
++				planeInfo_[i].offset = ints[b + 4 + i];
++				planeInfo_[i].size = ints[b + 8 + i];
++				if (!planeInfo_[i].stride || !planeInfo_[i].size ||
++				    planeInfo_[i].offset + planeInfo_[i].size > bufferLength_)
++					ok = false;
++			}
++			if (ok)
++				return;
++		}
++	}
++#endif
+ 	unsigned int offset = 0;
+ 	for (unsigned int i = 0; i < numPlanes; ++i) {
+ 		const unsigned int planeSize = info.planeSize(size, i);
+diff --git a/src/android/yuv/post_processor_yuv.cpp b/src/android/yuv/post_processor_yuv.cpp
+index c998807b..53c12352 100644
+--- a/src/android/yuv/post_processor_yuv.cpp
++++ b/src/android/yuv/post_processor_yuv.cpp
+@@ -7,6 +7,8 @@
+ 
+ #include "post_processor_yuv.h"
+ 
++#include <chrono>
++
+ #include <libyuv/scale.h>
+ 
+ #include <libcamera/base/log.h>
+@@ -32,7 +34,12 @@ int PostProcessorYuv::configure(const StreamConfiguration &inCfg,
+ 		return -EINVAL;
+ 	}
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	/* GBRUNCH: a clamped source may be smaller than a stream (1080p video from the binned mode). */
++	if (false) {
++#else
+ 	if (inCfg.size < outCfg.size) {
++#endif
+ 		LOG(YUV, Error) << "Up-scaling is not supported"
+ 				<< " (from " << inCfg.size
+ 				<< " to " << outCfg.size << ")";
+@@ -59,6 +66,10 @@ void PostProcessorYuv::process(Camera3RequestDescriptor::StreamBuffer *streamBuf
+ 		return;
+ 	}
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	/* GBRUNCH: average post-processing time every 60 frames, for CPU tuning. */
++	auto t0 = std::chrono::steady_clock::now();
++#endif
+ 	const MappedFrameBuffer sourceMapped(&source, MappedFrameBuffer::MapFlag::Read);
+ 	if (!sourceMapped.isValid()) {
+ 		LOG(YUV, Error) << "Failed to mmap camera frame buffer";
+@@ -72,9 +83,17 @@ void PostProcessorYuv::process(Camera3RequestDescriptor::StreamBuffer *streamBuf
+ 				    sourceStride_[1],
+ 				    sourceSize_.width, sourceSize_.height,
+ 				    destination->plane(0).data(),
++#ifdef GBRUNCH_TRUST_IPA
++				    destination->stride(0) ? destination->stride(0) : destinationStride_[0],
++#else
+ 				    destinationStride_[0],
++#endif
+ 				    destination->plane(1).data(),
++#ifdef GBRUNCH_TRUST_IPA
++				    destination->stride(1) ? destination->stride(1) : destinationStride_[1],
++#else
+ 				    destinationStride_[1],
++#endif
+ 				    destinationSize_.width,
+ 				    destinationSize_.height,
+ 				    libyuv::FilterMode::kFilterBilinear);
+@@ -84,6 +103,16 @@ void PostProcessorYuv::process(Camera3RequestDescriptor::StreamBuffer *streamBuf
+ 		return;
+ 	}
+ 
++#ifdef GBRUNCH_TRUST_IPA
++	timeUs_ += std::chrono::duration_cast<std::chrono::microseconds>(
++			   std::chrono::steady_clock::now() - t0).count();
++	if (++frames_ == 60) {
++		LOG(YUV, Info) << sourceSize_ << " -> " << destinationSize_ << ": "
++			       << timeUs_ / frames_ << " us/frame";
++		frames_ = 0;
++		timeUs_ = 0;
++	}
++#endif
+ 	processComplete.emit(streamBuffer, PostProcessor::Status::Success);
+ }
+ 
+diff --git a/src/android/yuv/post_processor_yuv.h b/src/android/yuv/post_processor_yuv.h
+index ed7bb1fb..1d0368f9 100644
+--- a/src/android/yuv/post_processor_yuv.h
++++ b/src/android/yuv/post_processor_yuv.h
+@@ -32,4 +32,8 @@ private:
+ 	unsigned int destinationLength_[2] = {};
+ 	unsigned int sourceStride_[2] = {};
+ 	unsigned int destinationStride_[2] = {};
++#ifdef GBRUNCH_TRUST_IPA
++	unsigned int frames_ = 0;
++	uint64_t timeUs_ = 0;
++#endif
+ };
+diff --git a/src/ipa/libipa/camera_sensor_helper.cpp b/src/ipa/libipa/camera_sensor_helper.cpp
+index 359040ec..4af1e1e7 100644
+--- a/src/ipa/libipa/camera_sensor_helper.cpp
++++ b/src/ipa/libipa/camera_sensor_helper.cpp
+@@ -762,6 +762,21 @@ public:
+ };
+ REGISTER_CAMERA_SENSOR_HELPER("ov2685", CameraSensorHelperOv2685)
+ 
++class CameraSensorHelperHi556 : public CameraSensorHelper
++{
++public:
++	CameraSensorHelperHi556()
++	{
++		/*
++		 * GBRUNCH: Hynix HI-556. Analogue gain register 0..240 is 1x + code / 16
++		 * (Linux hi556 driver range, up to 16x). Black level 0x40 at 10 bits.
++		 */
++		blackLevel_ = 4096;
++		gain_ = AnalogueGainLinear{ 1, 16, 0, 16 };
++	}
++};
++REGISTER_CAMERA_SENSOR_HELPER("hi556", CameraSensorHelperHi556)
++
+ class CameraSensorHelperOv2740 : public CameraSensorHelper
+ {
+ public:
+diff --git a/src/libcamera/base/log.cpp b/src/libcamera/base/log.cpp
+index 3404471f..81b14ac3 100644
+--- a/src/libcamera/base/log.cpp
++++ b/src/libcamera/base/log.cpp
+@@ -603,6 +603,10 @@ Logger::Logger()
+ 		wantColor = true;
+ 
+ 	logSetStream(&std::cerr, wantColor);
++#ifdef GBRUNCH_TRUST_IPA
++	/* GBRUNCH (Android): init-started HALs have no stderr and ignore LIBCAMERA_LOG_* (AT_SECURE). */
++	logSetTarget(LoggingTargetSyslog);
++#endif
+ 
+ 	parseLogFile();
+ 	parseLogLevels();
+diff --git a/src/libcamera/base/thread.cpp b/src/libcamera/base/thread.cpp
+index b204355a..344715b2 100644
+--- a/src/libcamera/base/thread.cpp
++++ b/src/libcamera/base/thread.cpp
+@@ -462,7 +462,12 @@ void Thread::setThreadAffinityInternal()
+ 		return;
+ 
+ 	const cpu_set_t &cpuset = data_->cpuset_.value();
++#ifdef __ANDROID__
++	/* Bionic has no pthread_setaffinity_np(). */
++	sched_setaffinity(pthread_gettid_np(thread_.native_handle()), sizeof(cpuset), &cpuset);
++#else
+ 	pthread_setaffinity_np(thread_.native_handle(), sizeof(cpuset), &cpuset);
++#endif
+ }
+ 
+ /**
+diff --git a/src/libcamera/ipa_manager.cpp b/src/libcamera/ipa_manager.cpp
+index 0fd17e58..1dc4a89e 100644
+--- a/src/libcamera/ipa_manager.cpp
++++ b/src/libcamera/ipa_manager.cpp
+@@ -288,6 +288,13 @@ IPAModule *IPAManager::module(const char *name, uint32_t minVersion,
+ 
+ bool IPAManager::isSignatureValid([[maybe_unused]] IPAModule *ipa) const
+ {
++#ifdef GBRUNCH_TRUST_IPA
++	/*
++	 * GBRUNCH (Android, unsigned build): modules load only from the
++	 * read-only IPA_MODULE_DIR, and an isolated proxy cannot exec there.
++	 */
++	return true;
++#endif
+ #if HAVE_IPA_PUBKEY
+ 	if (forceIsolation_) {
+ 		LOG(IPAManager, Debug)
+diff --git a/src/libcamera/software_isp/debayer_cpu.cpp b/src/libcamera/software_isp/debayer_cpu.cpp
+index 91867baa..d357d767 100644
+--- a/src/libcamera/software_isp/debayer_cpu.cpp
++++ b/src/libcamera/software_isp/debayer_cpu.cpp
+@@ -43,14 +43,16 @@ public:
+ 			 bool enableInputMemcpy);
+ 
+ 	void configure(unsigned int yStart, unsigned int yEnd);
+-	void process(uint32_t frame, const uint8_t *src, uint8_t *dst);
++	void process(uint32_t frame, const uint8_t *src, uint8_t *dst, uint8_t *dstUV);
+ 
+ private:
+ 	void setupInputMemcpy(const uint8_t *linePointers[]);
+ 	void shiftLinePointers(const uint8_t *linePointers[], const uint8_t *src);
+ 	void memcpyNextLine(const uint8_t *linePointers[]);
+-	void process2(uint32_t frame, const uint8_t *src, uint8_t *dst);
+-	void process4(uint32_t frame, const uint8_t *src, uint8_t *dst);
++	void process2(uint32_t frame, const uint8_t *src, uint8_t *dst, uint8_t *dstUV);
++	void process4(uint32_t frame, const uint8_t *src, uint8_t *dst, uint8_t *dstUV);
++	uint8_t *lineDst(uint8_t *dst, unsigned int line);
++	void finishPair(uint8_t *dst, uint8_t *&dstUV);
+ 
+ 	/* Max. supported Bayer pattern height is 4, debayering this requires 5 lines */
+ 	static constexpr unsigned int kMaxLineBuffers = 5;
+@@ -63,9 +65,35 @@ private:
+ 	unsigned int lineBufferPadding_;
+ 	unsigned int lineBufferIndex_;
+ 	std::vector<uint8_t> lineBuffers_[kMaxLineBuffers];
++	std::vector<uint8_t> rgbLines_[2]; /* NV12 output: the current RGB888 line pair */
+ 	bool enableInputMemcpy_;
+ };
+ 
++/*
++ * GBRUNCH: convert a pair of RGB888 lines (memory order B, G, R) to two NV12 luma lines and one
++ * interleaved CbCr line, using full-range BT.601 (JFIF), the YUV range Android cameras produce.
++ */
++static void rgbPairToNv12(const uint8_t *rgb0, const uint8_t *rgb1, uint8_t *y0, uint8_t *y1,
++			  uint8_t *uv, unsigned int width)
++{
++	for (unsigned int x = 0; x < width; x += 2) {
++		int sr = 0, sg = 0, sb = 0;
++		const uint8_t *px[4] = { rgb0 + 3 * x, rgb0 + 3 * x + 3, rgb1 + 3 * x, rgb1 + 3 * x + 3 };
++		uint8_t *py[4] = { y0 + x, y0 + x + 1, y1 + x, y1 + x + 1 };
++		for (unsigned int i = 0; i < 4; i++) {
++			int b = px[i][0], g = px[i][1], r = px[i][2];
++			*py[i] = (77 * r + 150 * g + 29 * b + 128) >> 8;
++			sr += r;
++			sg += g;
++			sb += b;
++		}
++		int cb = ((-43 * sr - 85 * sg + 128 * sb) / 4 + 128 * 256 + 128) >> 8;
++		int cr = ((128 * sr - 107 * sg - 21 * sb) / 4 + 128 * 256 + 128) >> 8;
++		uv[x] = std::clamp(cb, 0, 255);
++		uv[x + 1] = std::clamp(cr, 0, 255);
++	}
++}
++
+ /**
+  * \brief Construct a DebayerCpuThread object
+  * \param[in] debayer pointer back to the DebayerCpuObject this thread belongs to
+@@ -438,7 +466,8 @@ int DebayerCpu::getInputConfig(PixelFormat inputFormat, DebayerInputConfig &conf
+ 						   formats::ARGB8888,
+ 						   formats::BGR888,
+ 						   formats::XBGR8888,
+-						   formats::ABGR8888 };
++						   formats::ABGR8888,
++						   formats::NV12 };
+ 
+ 	if ((bayerFormat.bitDepth == 8 || bayerFormat.bitDepth == 10 || bayerFormat.bitDepth == 12) &&
+ 	    bayerFormat.packing == BayerFormat::Packing::None &&
+@@ -519,6 +548,7 @@ int DebayerCpu::setDebayerFunctions(PixelFormat inputFormat,
+ 
+ 	xShift_ = 0;
+ 	swapRedBlueGains_ = false;
++	outputNv12_ = outputFormat == formats::NV12;
+ 
+ 	auto invalidFmt = []() -> int {
+ 		LOG(Debayer, Error) << "Unsupported input output format combination";
+@@ -531,6 +561,7 @@ int DebayerCpu::setDebayerFunctions(PixelFormat inputFormat,
+ 		addAlphaByte = true;
+ 		[[fallthrough]];
+ 	case formats::RGB888:
++	case formats::NV12:
+ 		break;
+ 	case formats::XBGR8888:
+ 	case formats::ABGR8888:
+@@ -734,6 +765,26 @@ void DebayerCpuThread::configure(unsigned int yStart, unsigned int yEnd)
+ 		for (unsigned int i = 0; i <= inputConfig.patternSize.height; i++)
+ 			lineBuffers_[i].resize(lineBufferLength_);
+ 	}
++
++	for (auto &line : rgbLines_)
++		line.resize(debayer_->outputNv12_ ? debayer_->window_.width * 3 : 0);
++}
++
++/* Where debayer function output for line 0 or 1 of a pair goes: the line pair for NV12, else dst. */
++uint8_t *DebayerCpuThread::lineDst(uint8_t *dst, unsigned int line)
++{
++	return debayer_->outputNv12_ ? rgbLines_[line].data() : dst;
++}
++
++/* NV12: convert the line pair whose first luma line is at dst, and advance the CbCr line. */
++void DebayerCpuThread::finishPair(uint8_t *dst, uint8_t *&dstUV)
++{
++	if (!debayer_->outputNv12_)
++		return;
++	unsigned int stride = debayer_->outputConfig_.stride;
++	rgbPairToNv12(rgbLines_[0].data(), rgbLines_[1].data(), dst, dst + stride, dstUV,
++		      debayer_->window_.width);
++	dstUV += stride;
+ }
+ 
+ /*
+@@ -818,7 +869,7 @@ void DebayerCpuThread::memcpyNextLine(const uint8_t *linePointers[])
+  * \param[in] src The source buffer
+  * \param[in] dst The destination buffer
+  */
+-void DebayerCpuThread::process(uint32_t frame, const uint8_t *src, uint8_t *dst)
++void DebayerCpuThread::process(uint32_t frame, const uint8_t *src, uint8_t *dst, uint8_t *dstUV)
+ {
+ 	Rectangle &window = debayer_->window_;
+ 
+@@ -827,11 +878,13 @@ void DebayerCpuThread::process(uint32_t frame, const uint8_t *src, uint8_t *dst)
+ 	       window.x * debayer_->inputConfig_.bpp / 8;
+ 	/* Adjust dst for yStart_ */
+ 	dst += yStart_ * debayer_->outputConfig_.stride;
++	if (dstUV)
++		dstUV += yStart_ / 2 * debayer_->outputConfig_.stride;
+ 
+ 	if (debayer_->inputConfig_.patternSize.height == 2)
+-		process2(frame, src, dst);
++		process2(frame, src, dst, dstUV);
+ 	else
+-		process4(frame, src, dst);
++		process4(frame, src, dst, dstUV);
+ 
+ 	debayer_->workPendingMutex_.lock();
+ 	debayer_->workPending_ &= ~(1 << threadIndex_);
+@@ -839,7 +892,7 @@ void DebayerCpuThread::process(uint32_t frame, const uint8_t *src, uint8_t *dst)
+ 	debayer_->workPendingCv_.notify_one();
+ }
+ 
+-void DebayerCpuThread::process2(uint32_t frame, const uint8_t *src, uint8_t *dst)
++void DebayerCpuThread::process2(uint32_t frame, const uint8_t *src, uint8_t *dst, uint8_t *dstUV)
+ {
+ 	unsigned int outputStride = debayer_->outputConfig_.stride;
+ 	unsigned int inputStride = debayer_->inputConfig_.stride;
+@@ -877,35 +930,35 @@ void DebayerCpuThread::process2(uint32_t frame, const uint8_t *src, uint8_t *dst
+ 		shiftLinePointers(linePointers, src);
+ 		memcpyNextLine(linePointers);
+ 		debayer_->stats_->processLine0(frame, y, linePointers, threadIndex_);
+-		debayer_->debayer0(dst, linePointers);
++		debayer_->debayer0(lineDst(dst, 0), linePointers);
+ 		src += inputStride;
+-		dst += outputStride;
+ 
+ 		shiftLinePointers(linePointers, src);
+ 		memcpyNextLine(linePointers);
+-		debayer_->debayer1(dst, linePointers);
++		debayer_->debayer1(lineDst(dst + outputStride, 1), linePointers);
+ 		src += inputStride;
+-		dst += outputStride;
++		finishPair(dst, dstUV);
++		dst += 2 * outputStride;
+ 	}
+ 
+ 	if (window.y == 0 && yEnd_ == window.height) {
+ 		shiftLinePointers(linePointers, src);
+ 		memcpyNextLine(linePointers);
+ 		debayer_->stats_->processLine0(frame, yEnd, linePointers, threadIndex_);
+-		debayer_->debayer0(dst, linePointers);
++		debayer_->debayer0(lineDst(dst, 0), linePointers);
+ 		src += inputStride;
+-		dst += outputStride;
+ 
+ 		shiftLinePointers(linePointers, src);
+ 		/* next line may point outside of src, use prev. */
+ 		linePointers[2] = linePointers[0];
+-		debayer_->debayer1(dst, linePointers);
++		debayer_->debayer1(lineDst(dst + outputStride, 1), linePointers);
+ 		src += inputStride;
+-		dst += outputStride;
++		finishPair(dst, dstUV);
++		dst += 2 * outputStride;
+ 	}
+ }
+ 
+-void DebayerCpuThread::process4(uint32_t frame, const uint8_t *src, uint8_t *dst)
++void DebayerCpuThread::process4(uint32_t frame, const uint8_t *src, uint8_t *dst, uint8_t *dstUV)
+ {
+ 	unsigned int outputStride = debayer_->outputConfig_.stride;
+ 	unsigned int inputStride = debayer_->inputConfig_.stride;
+@@ -933,28 +986,28 @@ void DebayerCpuThread::process4(uint32_t frame, const uint8_t *src, uint8_t *dst
+ 		shiftLinePointers(linePointers, src);
+ 		memcpyNextLine(linePointers);
+ 		debayer_->stats_->processLine0(frame, y, linePointers, threadIndex_);
+-		debayer_->debayer0(dst, linePointers);
++		debayer_->debayer0(lineDst(dst, 0), linePointers);
+ 		src += inputStride;
+-		dst += outputStride;
+ 
+ 		shiftLinePointers(linePointers, src);
+ 		memcpyNextLine(linePointers);
+-		debayer_->debayer1(dst, linePointers);
++		debayer_->debayer1(lineDst(dst + outputStride, 1), linePointers);
+ 		src += inputStride;
+-		dst += outputStride;
++		finishPair(dst, dstUV);
++		dst += 2 * outputStride;
+ 
+ 		shiftLinePointers(linePointers, src);
+ 		memcpyNextLine(linePointers);
+ 		debayer_->stats_->processLine2(frame, y, linePointers, threadIndex_);
+-		debayer_->debayer2(dst, linePointers);
++		debayer_->debayer2(lineDst(dst, 0), linePointers);
+ 		src += inputStride;
+-		dst += outputStride;
+ 
+ 		shiftLinePointers(linePointers, src);
+ 		memcpyNextLine(linePointers);
+-		debayer_->debayer3(dst, linePointers);
++		debayer_->debayer3(lineDst(dst + outputStride, 1), linePointers);
+ 		src += inputStride;
+-		dst += outputStride;
++		finishPair(dst, dstUV);
++		dst += 2 * outputStride;
+ 	}
+ }
+ 
+@@ -1076,10 +1129,16 @@ void DebayerCpu::process(uint32_t frame, FrameBuffer *input, FrameBuffer *output
+ 	workPending_ = (1 << threads_.size()) - 1;
+ 	workPendingMutex_.unlock();
+ 
++	/* NV12: the CbCr plane, a separate plane or following the luma lines in plane 0. */
++	uint8_t *dstUV = nullptr;
++	if (outputNv12_)
++		dstUV = out.planes().size() > 1 ? out.planes()[1].data()
++						: out.planes()[0].data() + outputConfig_.stride * window_.height;
++
+ 	for (auto &thread : threads_)
+ 		thread->invokeMethod(&DebayerCpuThread::process,
+ 				     ConnectionTypeQueued, frame,
+-				     in.planes()[0].data(), out.planes()[0].data());
++				     in.planes()[0].data(), out.planes()[0].data(), dstUV);
+ 
+ 	{
+ 		MutexLocker locker(workPendingMutex_);
+@@ -1088,7 +1147,8 @@ void DebayerCpu::process(uint32_t frame, FrameBuffer *input, FrameBuffer *output
+ 		});
+ 	}
+ 
+-	metadata.planes()[0].bytesused = out.planes()[0].size();
++	for (unsigned int i = 0; i < metadata.planes().size() && i < out.planes().size(); i++)
++		metadata.planes()[i].bytesused = out.planes()[i].size();
+ 
+ 	dmaSyncers.clear();
+ 
+diff --git a/src/libcamera/software_isp/debayer_cpu.h b/src/libcamera/software_isp/debayer_cpu.h
+index ae570893..ad8c61ca 100644
+--- a/src/libcamera/software_isp/debayer_cpu.h
++++ b/src/libcamera/software_isp/debayer_cpu.h
+@@ -156,6 +156,8 @@ private:
+ 	Rectangle window_;
+ 	std::unique_ptr<SwStatsCpu> stats_;
+ 	unsigned int xShift_; /* Offset of 0/1 applied to window_.x */
++	/* GBRUNCH: NV12 output, debayered as RGB888 into per-thread line pairs, then converted. */
++	bool outputNv12_ = false;
+ 
+ 	static constexpr unsigned int kMinThreads = 1;
+ 	static constexpr unsigned int kMaxThreads = 8;
+diff --git a/src/libcamera/software_isp/software_isp.cpp b/src/libcamera/software_isp/software_isp.cpp
+index 627625b4..e76f2b51 100644
+--- a/src/libcamera/software_isp/software_isp.cpp
++++ b/src/libcamera/software_isp/software_isp.cpp
+@@ -24,6 +24,7 @@
+ #include <libcamera/stream.h>
+ 
+ #include "libcamera/internal/bayer_format.h"
++#include "libcamera/internal/formats.h"
+ #include "libcamera/internal/framebuffer.h"
+ #include "libcamera/internal/software_isp/debayer_params.h"
+ 
+@@ -298,6 +299,18 @@ int SoftwareIsp::configure(const StreamConfiguration &inputCfg,
+ 	if (ret < 0)
+ 		return ret;
+ 
++	/* GBRUNCH: export multi-planar formats with one plane per format plane, as consumers expect. */
++	outputPlaneSizes_ = { debayer_->frameSize() };
++	if (outputCfgs.size() == 1) {
++		const StreamConfiguration &out = outputCfgs[0];
++		const PixelFormatInfo &info = PixelFormatInfo::info(out.pixelFormat);
++		if (info.isValid() && info.numPlanes() > 1) {
++			outputPlaneSizes_.clear();
++			for (unsigned int i = 0; i < info.numPlanes(); i++)
++				outputPlaneSizes_.push_back(info.planeSize(out.size.height, i, out.stride));
++		}
++	}
++
+ 	LOG(SoftwareIsp, Info)
+ 		<< "Input " << inputCfg.size
+ 		<< "-" << BayerFormat::fromPixelFormat(inputCfg.pixelFormat)
+@@ -323,7 +336,7 @@ int SoftwareIsp::exportBuffers(const Stream *stream, unsigned int count,
+ 	if (stream == nullptr)
+ 		return -EINVAL;
+ 
+-	return dmaHeap_.exportBuffers(count, { debayer_->frameSize() }, buffers);
++	return dmaHeap_.exportBuffers(count, outputPlaneSizes_, buffers);
+ }
+ 
+ /**
+diff --git a/src/libcamera/source_paths.cpp b/src/libcamera/source_paths.cpp
+index 1af5386a..430192ce 100644
+--- a/src/libcamera/source_paths.cpp
++++ b/src/libcamera/source_paths.cpp
+@@ -39,6 +39,10 @@ namespace {
+  */
+ bool isLibcameraInstalled()
+ {
++#ifdef GBRUNCH_TRUST_IPA
++	/* GBRUNCH: installed under /oem/camera with an intentional DT_RUNPATH. */
++	return true;
++#endif
+ 	/*
+ 	 * DT_RUNPATH (DT_RPATH when the linker uses old dtags) is removed on
+ 	 * install.
+diff --git a/src/meson.build b/src/meson.build
+index 8e23d40c..855d7b03 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -16,7 +16,8 @@ summary({
+ 
+ # Module Signing
+ openssl = find_program('openssl', required : false)
+-if openssl.found()
++# GBRUNCH: no per-build random signing key in cross (Android) builds, so the output is reproducible.
++if openssl.found() and not meson.is_cross_build()
+     ipa_priv_key = custom_target('ipa-priv-key',
+                                  output : ['ipa-priv-key.pem'],
+                                  command : [gen_ipa_priv_key, '@OUTPUT@'])
