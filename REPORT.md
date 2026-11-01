@@ -836,3 +836,14 @@ The locally assembled Lenovo V7 QCOW2 view now feeds both a boot-USB trial deplo
 QEMU tests passed for the read-only source bridge, dummy NVMe installation with Windows bytes unchanged, EFI registration, USB trial copying/readback, original Linux boot bytes retained, refusal of repeat overwrite, and rollback after an injected primary-GPT write failure. A cold USB UEFI menu selection also reached the unchanged original Google 6.18.21 kernel. These use dummy system/Windows contents plus the original kernel for handoff; they do not establish an Android desktop in this new layout. The retained real official recovery/private build were separately hash-verified. A physical HP trial/internal install remains to be tested; the earlier external V7 result is still the only physical success claim.
 
 Final ISO SHA256: 72a293967259183584ffdaf9249da5019ee13951024e4d1de1c1e7e0667f5ccc. Google-derived recovery/view binaries remain local and are excluded from the ISO and source kit. New console transcripts, partition backups and operation statuses persist under GBWORK/logs.
+
+## V8 USB camera init (proposed)
+
+V7 imports Ruby's vendor init files explicitly and excludes `init.insmod.rc` and `init.common.rc`. That also drops two things Ruby's USB (UVC) camera HAL needs:
+
+* `system_heap.ko`, loaded by `init.insmod.rc` through `init.insmod.common.cfg`. Without it `/dev/dma_heap/system` does not exist: the minigbm allocator logs `Could not open DMA-BUF heap named: system`, and the camera HAL fails every capture request with `V4L2Device(BufferAllocation)`. The camera is listed and hot-plug works, but the preview stays black.
+* `/data/vendor/camera`, created by `init.common.rc`. The camera effects pipeline logs `Permission denied` without it.
+
+`tools/build_compat_v8.py` derives V8 from the V7 image by adding exactly two lines to `/init.gbrunch.rc`: `insmod /vendor/lib/modules/system_heap.ko` in `on early-init`, and `mkdir /data/vendor/camera 0775 system camera` in `on post-fs-data`. Mode, owner and SELinux label are kept, the e2fsprogs clock is fixed, and `e2fsck -fn` passes. `tools/test_compat_v8.py` rebuilds V8 twice and compares the bytes. It also checks that the other 33 V7 files and every SELinux label are unchanged, and that the only `init.gbrunch.rc` difference is the two inserted lines. V8 SHA256: `bffa9ccc2b96add0fcd0da4fb0284a12e637fcdc3f7d2a692eb3239aea522d30`.
+
+Physical evidence: on an HP Dragonfly G4 (board 8B63), a profile image (Dragonfly profile, pull request #7) that adds the same two init lines shows the preview of a Buffalo BSW20KM11 UVC camera (`0458:708c`). Without them the preview was black. V8 itself is not yet physically tested. The release steps remain to be done: `COMPAT_HASH` in `tools/dualboot_installer.py`, the asset tarball and the toolbox pins.
