@@ -1,9 +1,14 @@
 #!/bin/bash
 # Replace the GBVENDOR partition of an existing Googlebook USB disk with a newly built vendor.erofs.
-# Usage: sudo bash apply-vendor-update.sh /dev/sdX vendor.erofs
+# USB disks only, unless --internal is given (an internal disk the image was written to).
+# Usage: sudo bash apply-vendor-update.sh [--internal] /dev/sdX|/dev/nvmeXnY vendor.erofs
 set -euo pipefail
-d=${1:?usage: sudo bash apply-vendor-update.sh /dev/sdX vendor.erofs}; v=${2:?vendor.erofs}
-[ "$(lsblk -dno TRAN "$d")" = usb ] || { echo "$d is not a USB disk"; exit 1; }
+internal=0; [ "${1:-}" = --internal ] && { internal=1; shift; }
+d=${1:?usage: sudo bash apply-vendor-update.sh [--internal] /dev/sdX|/dev/nvmeXnY vendor.erofs}; v=${2:?vendor.erofs}
+[ "$(lsblk -dno TYPE "$d")" = disk ] || { echo "$d is not a whole disk"; exit 1; }
+tran=$(lsblk -dno TRAN "$d")
+if [ "$internal" = 1 ]; then [ "$tran" != usb ] || { echo "$d is a USB disk; drop --internal"; exit 1; }
+else [ "$tran" = usb ] || { echo "$d is not a USB disk (use --internal for an internal disk)"; exit 1; }; fi
 [ -z "$(lsblk -no MOUNTPOINTS "$d" | tr -d '[:space:]')" ] || { echo "Unmount all partitions of $d first"; exit 1; }
 p=$(lsblk -lnpo NAME,PARTLABEL "$d" | awk '$2=="GBVENDOR"{print $1}')
 [ "$(echo "$p" | wc -w)" = 1 ] || { echo "need exactly one GBVENDOR partition on $d"; exit 1; }
