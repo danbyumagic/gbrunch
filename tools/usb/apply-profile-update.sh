@@ -3,10 +3,15 @@
 # (tools/prepare_profile_assets.py output): replace the GBRUNCH (/oem) partition with its
 # compat.ext4 and set the profile's kernel options (profile-*.json cmdline_append) in
 # EFI/GBRUNCH/grub.cfg. System, vendor, userdata and GBLOG are not touched.
-# Usage: sudo bash apply-profile-update.sh /dev/sdX assets-dir
+# USB disks only, unless --internal is given (an internal disk the image was written to).
+# Usage: sudo bash apply-profile-update.sh [--internal] /dev/sdX|/dev/nvmeXnY assets-dir
 set -euo pipefail
-d=${1:?usage: sudo bash apply-profile-update.sh /dev/sdX assets-dir}; assets=${2:?assets-dir}
-[ "$(lsblk -dno TRAN "$d")" = usb ] || { echo "$d is not a USB disk"; exit 1; }
+internal=0; [ "${1:-}" = --internal ] && { internal=1; shift; }
+d=${1:?usage: sudo bash apply-profile-update.sh [--internal] /dev/sdX|/dev/nvmeXnY assets-dir}; assets=${2:?assets-dir}
+[ "$(lsblk -dno TYPE "$d")" = disk ] || { echo "$d is not a whole disk"; exit 1; }
+tran=$(lsblk -dno TRAN "$d")
+if [ "$internal" = 1 ]; then [ "$tran" != usb ] || { echo "$d is a USB disk; drop --internal"; exit 1; }
+else [ "$tran" = usb ] || { echo "$d is not a USB disk (use --internal for an internal disk)"; exit 1; }; fi
 [ -z "$(lsblk -no MOUNTPOINTS "$d" | tr -d '[:space:]')" ] || { echo "Unmount all partitions of $d first"; exit 1; }
 part() { local p; p=$(lsblk -lnpo NAME,PARTLABEL "$d" | awk -v n="$1" '$2==n{print $1}'); [ "$(echo "$p" | wc -w)" = 1 ] || { echo "need exactly one '$1' partition on $d"; exit 1; }; echo "$p"; }
 gb=$(part GBRUNCH); esp=$(part EFI-SYSTEM); part GBLOG >/dev/null

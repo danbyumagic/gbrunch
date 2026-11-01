@@ -89,7 +89,9 @@ It restores those two partitions from the image and reformats userdata.
 ### Updating a USB disk in place
 
 These scripts in `tools/usb/` check that the target is a USB disk with no mounted partitions and the expected
-partition labels. They read each write back and compare it.
+partition labels. `apply-profile-update.sh` and `grow-userdata.sh` take `--internal` to accept a non-USB disk
+instead (an internal NVMe disk the image was written to, updated from a live USB system).
+They read each write back and compare it.
 
 | Script | Replaces |
 |---|---|
