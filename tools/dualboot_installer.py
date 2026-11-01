@@ -13,7 +13,7 @@ COMPAT_HASH='77cb6ec0e399a944a020b5d7d55d03dbd1bb5a2ba01012be91d315987ab69722'
 # derived from it by tools/prepare_profile_assets.py (deterministic e2fsprogs output). Kept equal to
 # PROFILES[*]['compat_sha256'] by tests/test_prepare_profile_assets.py; superseded images are refused.
 COMPAT_HASHES={COMPAT_HASH:'V7',
- '99ab16019fd3ed701cf0d2e6043c1894d25c17a5d6d063a848ca0602f8ba5a2d':'V7 + hp-dragonfly-g4 profile + audio + ac.ko + CS35L41 speakers (external boost fix, error IRQ)'}
+ 'f1db7e68a3cb881ad9dd4d50791b0019dcd2f8d2b9089adf732852aa2f4298c2':'V7 + hp-dragonfly-g4 profile + audio + ac.ko + CS35L41 speakers (external boost fix, error IRQ)'}
 SOURCE_GUIDS={'GBRUNCH':'4ab7c001-7400-4bab-b412-43cbd52b9fb1','GBVENDOR':'4ab7c002-7400-4bab-b412-43cbd52b9fb1','GBLOG':'4ab7c003-7400-4bab-b412-43cbd52b9fb1'}
 EXPECTED={'userdata','KERN-A','super','KERN-B','ROOT-B','KERN-C','ROOT-C','OEM','ota_recovery_a','ota_recovery_b','EFI-SYSTEM','boot_a','boot_b','vbmeta_a','vbmeta_b','metadata','init_boot_a','init_boot_b','vendor_boot_a','vendor_boot_b','pvmfw_a','pvmfw_b','misc','RWFW-A','RWFW-B','recovery_a','recovery_b','desktop_security_persist','desktop_security_storage','frp_persist','GBRUNCH','GBVENDOR','GBLOG'}
 def require(value,message):

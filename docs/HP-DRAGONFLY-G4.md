@@ -26,6 +26,7 @@ occurred. Which option is strictly needed has not been isolated; DPT is the prim
 | Charger | ACPI `ACPI0003` (AC) | out-of-tree `ac.ko` (profile) | Works |
 | Speakers | 4x CS35L41 on SPI0 (`CSC3551`, full `_DSD`) | out-of-tree `gbrunch_csc3551_spi` + upstream snd-hda-scodec-cs35l41 (profile) | Works, full volume (external boost fix) |
 | Camera | IPU6EP `8086:a75d`, hi556 + OVTI00AB, INT3472 | camera HAL is IPU7-only | Not working: use a USB UVC camera |
+| USB camera | UVC (tested: Buffalo BSW20KM11) | Ruby's USB camera HAL needs `/dev/dma_heap/system` (`system_heap.ko`, loaded by the profile) | Works |
 | Hotkeys | intel_hid, hp_wmi | neither present | Some Fn keys missing |
 
 ## Build a Dragonfly asset directory

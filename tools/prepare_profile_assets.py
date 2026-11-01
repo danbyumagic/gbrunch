@@ -32,6 +32,7 @@ LOGGER_ANCHOR='''    capture "$n-wifi.txt" dumpsys -t 5 wifi
 LOGGER_CAPTURE='''    capture "$n-backlight-audio.txt" sh -c 'for d in /sys/class/backlight/*; do echo "== $d"; for f in type max_brightness brightness actual_brightness bl_power; do echo "$f=$(cat $d/$f)"; done; done; cat /proc/asound/cards /proc/asound/pcm; ls -l /dev/snd; dumpsys -t 5 media.audio_flinger | head -200; dumpsys -t 5 media.audio_policy | head -200'
     capture "$n-audio-logcat.txt" sh -c 'logcat -b all -d -v threadtime | grep -iE "audio|dras|APM_|soundcard|hal_?config|sofhdadsp|sof-hda|tinyalsa|mixer|alsa" | tail -c 1048576'
     capture "$n-audio-kernel.txt" sh -c 'dmesg | grep -iE "cs35l41|cs_dsp|sof-audio|snd_hda|alc269|ehdaudio|hdac|skl_hda" | tail -c 262144'
+    capture "$n-camera.txt" sh -c 'ls -lZ /dev/dma_heap /dev/video* /dev/media* 2>&1; for v in /sys/class/video4linux/*; do echo "$v $(cat $v/name)"; done; dumpsys -t 5 media.camera | head -150'
     capture "$n-battery.txt" sh -c 'dumpsys -t 5 battery; for d in /sys/class/power_supply/*; do echo "== $d -> $(readlink -f $d)"; for f in type online status capacity; do echo "$f=$(cat $d/$f)"; done; done'
 '''
 PROFILE_DIR=pathlib.Path(__file__).resolve().parents[1]/'profiles'
@@ -43,7 +44,7 @@ INIT_ANCHOR='''    mount none /oem/weaver-manifest.xml /vendor/etc/vintf/manifes
 PROFILES={
  'hp-dragonfly-g4':{
   'board':'8B63',
-  'compat_sha256':'99ab16019fd3ed701cf0d2e6043c1894d25c17a5d6d063a848ca0602f8ba5a2d',
+  'compat_sha256':'f1db7e68a3cb881ad9dd4d50791b0019dcd2f8d2b9089adf732852aa2f4298c2',
   # Physical test 2026-10-31: with defaults the RPL-U eDP primary plane faulted
   # ("[PLANE:33:plane 1A] fault", Y-tiled XRGB via DPT) and the panel went black.
   # These xe display options removed every fault; setup and apps then worked.
@@ -77,8 +78,11 @@ PROFILES={
   # Speakers: 4x CS35L41 on SPI0 behind ACPI CSC3551. The chain is stock cs_dsp/cs-amp-lib, then our
   # cs35l41-lib (it replaces the stock one, whose CRCs come from a different tree; never load both), then
   # the gbrunch-csc3551-spi shim (creates and names the SPI devices), then the CS35L41 HDA driver + SPI glue.
+  # system_heap: /dev/dma_heap/system. Ruby loads it from init.insmod.rc, which the compat image
+  # excludes; without it the USB camera HAL fails V4L2 buffer allocation (black preview).
   'oem_modules':[
    {'file':'ac.ko','sha256':'773b704764e4b45ad853630c986634a54146ddcd65fbe5a0009ea6c421ffe680','stage':'early-init'},
+   {'stock':'/vendor/lib/modules/system_heap.ko','stage':'early-init'},
    {'stock':'/vendor/lib/modules/cs_dsp.ko','stage':'post-fs-data'},
    {'stock':'/vendor/lib/modules/snd-soc-cs-amp-lib.ko','stage':'post-fs-data'},
    {'file':'snd-soc-cs35l41-lib.ko','sha256':'e6fa3f7048e07641a68efc4a497280dcef83f0738f8a482f539e8250ae6f6712','stage':'post-fs-data'},
@@ -86,6 +90,9 @@ PROFILES={
    {'file':'snd-hda-scodec-cs35l41.ko','sha256':'d31627c356db31814b1f6d15c223df610165db8e45eef28259fcd14beb391ab7','stage':'post-fs-data'},
    {'file':'snd-hda-scodec-cs35l41-spi.ko','sha256':'d1c1c194fb96482ac067db41536319aa70f99688a477f20b4ff7ddfdb5513c71','stage':'post-fs-data'},
   ],
+  # Extra post-fs-data commands. /data/vendor/camera is created by Ruby's excluded init.common.rc;
+  # the camera effects pipeline caches there.
+  'init_post_fs_data':['mkdir /data/vendor/camera 0775 system camera'],
   'init_binds':[('/oem/audio/hal_audio.xml','/vendor/etc/data/hal_configs/audio_default.xml'),
                 ('/oem/audio/hal_audio.xml','/vendor/etc/data/hal_configs/audio_alc5682i_tas2563rppr.xml'),
                 ('/oem/audio/audio_config.xml','/vendor/etc/audio/sof-rt5682_alc5682ivs_tas2563/audio_config.xml'),
@@ -317,11 +324,11 @@ def main():
             add_oem_file(tmp/'compat.ext4',ko,'/modules/'+m['file'],'vendor_file')
         def insmods(stage):
             return ''.join('    insmod %s\n'%(m.get('stock') or '/oem/modules/'+m['file']) for m in mods if m['stage']==stage)
-        if profile.get('init_binds') or mods:
+        if profile.get('init_binds') or mods or profile.get('init_post_fs_data'):
             binds=''.join('    mount none %s %s bind\n'%(s,d) for s,d in profile.get('init_binds',[]))
             binds+=insmods('early-init')
             replace_oem_text(tmp/'compat.ext4','/init.gbrunch.rc',INIT_ANCHOR,INIT_ANCHOR+binds)
-            late=insmods('post-fs-data')
+            late=insmods('post-fs-data')+''.join('    %s\n'%c for c in profile.get('init_post_fs_data',[]))
             if late:replace_oem_text(tmp/'compat.ext4','/init.gbrunch.rc','on post-fs-data\n','on post-fs-data\n'+late)
         if profile.get('logger_capture'):
             replace_oem_text(tmp/'compat.ext4','/gbrunch-logger.sh',LOGGER_ANCHOR,LOGGER_CAPTURE+LOGGER_ANCHOR)
