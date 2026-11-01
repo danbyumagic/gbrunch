@@ -45,6 +45,12 @@ MODULES={
                 'snd-soc-cs35l41-lib-y := cs35l41-lib.o\n'
                 'snd-hda-scodec-cs35l41-y := cs35l41_hda.o cs35l41_hda_property.o\n'
                 'snd-hda-scodec-cs35l41-spi-y := cs35l41_hda_spi.o\n'),
+ # Unmodified upstream ipu-bridge (CONFIG_IPU_BRIDGE=n in the stock kernel and in Ruby's intel-ipu6.ko)
+ # and the shim that runs it on the IPU6 PCI device. Load ipu-bridge first.
+ 'ipu6-bridge':(['drivers/media/pci/intel/ipu-bridge.c','gbrunch:gbrunch-ipu6-bridge/gbrunch_ipu6_bridge.c',
+                 'gbrunch:compat/gbrunch_ipu_compat.h'],
+                'ccflags-y += -DCONFIG_IPU_BRIDGE_MODULE=1\n'  # the bridge API in media/ipu-bridge.h
+                'obj-m += ipu-bridge.o gbrunch_ipu6_bridge.o\n'),
 }
 # Call-site renames into gbrunch_gki_compat.h for helpers the stock GKI does not export.
 COMPAT_CALLS=['gpiod_get_index','gpiod_count','regmap_irq_get_virq','devm_regmap_add_irq_chip','lock_system_sleep',
@@ -65,7 +71,17 @@ SOURCE_PATCHES=[('cs35l41_hda.c','ret = devm_request_threaded_irq(cs35l41->dev, 
   '\t{ "103C8B63", 4, EXTERNAL, { CS35L41_RIGHT, CS35L41_LEFT, CS35L41_RIGHT, CS35L41_LEFT }, -1, -1, -1, 0, 0, 0 },\n'),
  ('cs35l41_hda_property.c','\t{ "CSC3551", "103C8A6E", generic_dsd_config },\n',
   '\t{ "CSC3551", "103C8A6E", generic_dsd_config },\n\t{ "CSC3551", "103C8B63", generic_dsd_config },\n')]
-COMPAT_FILES={'cs35l41_hda.c','cs35l41_hda_property.c'}
+IPU_COMPAT_CALLS=['acpi_get_physical_device_location','i2c_acpi_new_device_by_fwnode','i2c_find_device_by_fwnode',
+                  'strchrnul','software_node_fwnode','set_secondary_fwnode','software_node_register_node_group',
+                  'software_node_unregister_node_group']
+# Copied source -> (compat header, renamed calls).
+# ipu-bridge: the IVSC lookup needs platform_bus_type and device_find_child, which are protected exports
+# (signed modules only). The Dragonfly G4 has no IVSC (Ubuntu ACPI/dmesg inventory), so report none.
+SOURCE_PATCHES.append(('ipu-bridge.c','\tdev = bus_find_device(&platform_bus_type, NULL, adev,\n\t\t\t      ipu_bridge_match_ivsc_dev);\n',
+                       '\tdev = NULL;  /* GBRUNCH: IVSC lookup needs protected exports; no IVSC on supported boards */\n'
+                       '\t(void)ipu_bridge_match_ivsc_dev;\n'))
+COMPAT_FILES={'cs35l41_hda.c':('gbrunch_gki_compat.h',COMPAT_CALLS),'cs35l41_hda_property.c':('gbrunch_gki_compat.h',COMPAT_CALLS),
+              'ipu-bridge.c':('gbrunch_ipu_compat.h',IPU_COMPAT_CALLS)}
 # Rebuilt replacements for stock vendor modules. Ruby's vendor modules come from a different
 # tree (vermagic ...-ga3bbc4527b7b), and their cs35l41-lib export CRCs differ from this build. So the
 # stock copy must NOT be loaded together with ours. Imports satisfied inside this build are checked
@@ -132,9 +148,10 @@ def main():
                     if fn==f.name:
                         if t.count(o)!=1:raise SystemExit('%s: patch anchor not unique: %s'%(fn,o))
                         t=t.replace(o,n)
-                for c in COMPAT_CALLS:t=re.sub(r'(?<![\w.>])%s\('%c,'gbrunch_%s('%c,t)
+                header,calls=COMPAT_FILES[f.name]
+                for c in calls:t=re.sub(r'(?<![\w.>])%s\('%c,'gbrunch_%s('%c,t)
                 last=[m.end() for m in re.finditer(r'^#include [<"].*[>"]\n',t,re.M)][-1]
-                f.write_text(t[:last]+'#include "gbrunch_gki_compat.h"\n'+t[last:])
+                f.write_text(t[:last]+'#include "%s"\n'%header+t[last:])
         (mdir/'Kbuild').write_text(kbuild)
         log=run('make','-C',out,'LLVM=1','ARCH=x86_64','M='+str(mdir),'KERNELRELEASE='+RELEASE,'modules',env=env,capture_output=True,text=True)
         warn=[l for l in (log.stdout+log.stderr).splitlines() if 'WARNING' in l or 'ERROR' in l]
