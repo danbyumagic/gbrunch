@@ -11,6 +11,7 @@ No Google recovery bytes are read or written, and no block devices are touched.
 """
 import argparse,base64,gzip,hashlib,io,json,os,pathlib,tarfile,re,shutil,subprocess,sys,tempfile,urllib.request
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent))
+import googlebook_boot_menu
 from googlebook_boot_menu import smbios_gate
 
 COMMIT='788aadc8f73d93908cf8545b2fc770fb6580a3f2'  # same linux-firmware commit as download_hp_radio_firmware.py
@@ -42,7 +43,7 @@ INIT_ANCHOR='''    mount none /oem/weaver-manifest.xml /vendor/etc/vintf/manifes
 PROFILES={
  'hp-dragonfly-g4':{
   'board':'8B63',
-  'compat_sha256':'af67e02b59f7eddd093e33c5c07220cb2f777b903ce2e3b05300ffb5509737fd',
+  'compat_sha256':'99ab16019fd3ed701cf0d2e6043c1894d25c17a5d6d063a848ca0602f8ba5a2d',
   # Physical test 2026-10-31: with defaults the RPL-U eDP primary plane faulted
   # ("[PLANE:33:plane 1A] fault", Y-tiled XRGB via DPT) and the panel went black.
   # These xe display options removed every fault; setup and apps then worked.
@@ -81,8 +82,8 @@ PROFILES={
    {'stock':'/vendor/lib/modules/cs_dsp.ko','stage':'post-fs-data'},
    {'stock':'/vendor/lib/modules/snd-soc-cs-amp-lib.ko','stage':'post-fs-data'},
    {'file':'snd-soc-cs35l41-lib.ko','sha256':'e6fa3f7048e07641a68efc4a497280dcef83f0738f8a482f539e8250ae6f6712','stage':'post-fs-data'},
-   {'file':'gbrunch_csc3551_spi.ko','sha256':'86ddcf57f29f550fdc662342a15bb3b1c2905c7bd13dd231734ae736f71ed03d','stage':'post-fs-data'},
-   {'file':'snd-hda-scodec-cs35l41.ko','sha256':'3b70ad93e75c88858364ab4dbc015d672d0032dc5c9db270f71d85e5be799e02','stage':'post-fs-data'},
+   {'file':'gbrunch_csc3551_spi.ko','sha256':'78b2f6b1af927176ed74e404b16bc3d120638124060e9c826f0c93a1e17233d9','stage':'post-fs-data'},
+   {'file':'snd-hda-scodec-cs35l41.ko','sha256':'d31627c356db31814b1f6d15c223df610165db8e45eef28259fcd14beb391ab7','stage':'post-fs-data'},
    {'file':'snd-hda-scodec-cs35l41-spi.ko','sha256':'d1c1c194fb96482ac067db41536319aa70f99688a477f20b4ff7ddfdb5513c71','stage':'post-fs-data'},
   ],
   'init_binds':[('/oem/audio/hal_audio.xml','/vendor/etc/data/hal_configs/audio_default.xml'),
@@ -268,11 +269,11 @@ def replace_oem_text(image,path,old,new):
                 'ea_set %s security.selinux %s'%(path,ea))
     subprocess.run(['e2fsck','-fn',str(image)],check=True,capture_output=True,env=ENV)
 
-def regenerate_gate(cfg):
+def regenerate_gate(cfg,cmd):
     # Replace the SMBIOS admission block of the default entry with the shared profile list.
     m=re.search(r"(menuentry '[^']*' \{\n)( insmod smbios\n.*?)( if \[ \"\$allowed\" = \"1\" \]; then\n)",cfg,re.S)
     if not m:raise ValueError('native-grub.cfg: admission block not found')
-    cfg=cfg[:m.start(2)]+smbios_gate()+cfg[m.end(2):]
+    cfg=cfg[:m.start(2)]+smbios_gate(cmd)+cfg[m.end(2):]
     return cfg.replace("This experiment is restricted to the tested HP 15-fe1xxx / 8C4F or QEMU.",
                        "This experiment requires a known hardware profile (exact SMBIOS match) or QEMU.")
 
@@ -329,12 +330,18 @@ def main():
             raise ValueError('Derived compat.ext4 %s differs from the pinned profile image %s'%(compat,profile['compat_sha256']))
         if manifest['files']['compat.ext4']!=BASE_COMPAT:
             print('WARNING: source kit is not the tested V7 image; the trial/installer will refuse this compat.ext4',flush=True)
-        cfg=tmp/'native-grub.cfg';cfg.write_text(regenerate_gate(cfg.read_text()))
         extra=profile.get('cmdline_append','')
         if extra and extra not in manifest['cmdline']:
             if not re.fullmatch(r'[A-Za-z0-9_.=, -]+',extra):raise ValueError('Unsafe cmdline_append')
             manifest['cmdline']=manifest['cmdline'].replace(' androidboot.init_rc=',' '+extra+' androidboot.init_rc=',1)
             assert extra in manifest['cmdline'],'cmdline anchor androidboot.init_rc= not found'
+        # The boot menu admits the board only if this build's command line carries its required options.
+        if profile['board'] not in {v['board'] for v in googlebook_boot_menu.admitted(manifest['cmdline'])}:
+            raise ValueError('cmdline_append lacks the boot menu requirements for board '+profile['board'])
+        cfg=tmp/'native-grub.cfg';cfg.write_text(regenerate_gate(cfg.read_text(),manifest['cmdline']))
+        # assemble_native_android.py renders grub.cfg with the googlebook_boot_menu.py beside it; ship this
+        # branch's copy so the kit's own assemble admits the profile board.
+        shutil.copyfile(pathlib.Path(googlebook_boot_menu.__file__),tmp/'googlebook_boot_menu.py')
         record={'profile':a.profile,'board':profile['board'],'cmdline_append':profile.get('cmdline_append',''),'status':'profile: inventory-matched, Android boot not yet observed',
                 'evidence':profile['evidence'],'source':SOURCE,'source_kit_compat_sha256':manifest['files']['compat.ext4'],
                 'files':[{k:e[k] for k in ['name','target','sha256','bytes']} for e,_ in fetched]}

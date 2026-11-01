@@ -5,15 +5,24 @@ import argparse,os,pathlib,re,shutil,tempfile
 # Exact SMBIOS identities admitted by the default entry. 'tested' means a physical
 # Android desktop boot was observed; 'profile' means device IDs and firmware were
 # matched from a collected inventory but Android has not yet been booted there.
+# 'requires': kernel arguments without which the board must not boot by default. A build
+# whose command line lacks them (for example the plain V7 kit) does not admit the board.
 PROFILES=[
     {'name':'HP Envy x360 15-fe1xxx','status':'tested','vendor':'HP',
      'product':'HP Envy x360 2-in-1 Laptop 15-fe1xxx','board':'8C4F'},
     {'name':'HP Dragonfly G4','status':'profile','vendor':'HP',
-     'product':'HP Dragonfly 13.5 inch G4 Notebook PC','board':'8B63'},
+     'product':'HP Dragonfly 13.5 inch G4 Notebook PC','board':'8B63',
+     # Without these the eDP plane faults (black panel) and avs claims the DSP; see prepare_profile_assets.
+     'requires':['xe.enable_psr=0','xe.enable_dpt=0','xe.enable_fbc=0','snd_intel_dspcfg.dsp_driver=3']},
 ]
 
-def smbios_gate(indent=' '):
-    """GRUB lines that set allowed=1 for QEMU or an exact PROFILES match."""
+def admitted(cmd):
+    """PROFILES entries whose required kernel arguments are all present in cmd."""
+    args=set((cmd or '').split())
+    return [v for v in PROFILES if set(v.get('requires',[]))<=args]
+
+def smbios_gate(cmd,indent=' '):
+    """GRUB lines that set allowed=1 for QEMU or an exact match of a profile admitted for cmd."""
     for v in PROFILES:
         for k in ['vendor','product','board']:
             if not re.fullmatch(r'[A-Za-z0-9 .+()-]+',v[k]):raise ValueError('Unsafe SMBIOS value '+v[k])
@@ -23,7 +32,7 @@ def smbios_gate(indent=' '):
            'smbios --type=2 --get-string=5 --set=board_product',
            'set allowed=0',
            'if [ "$system_vendor" = "QEMU" ]; then',' set allowed=1','fi']
-    for v in PROFILES:
+    for v in admitted(cmd):
         lines+=['if [ "$system_vendor" = "%s" ]; then'%v['vendor'],
                 ' if [ "$system_product" = "%s" ]; then'%v['product'],
                 '  if [ "$board_product" = "%s" ]; then'%v['board'],
@@ -61,7 +70,7 @@ function gbrunch_boot {
  initrd /EFI/GBRUNCH/initrd.gz
 }
 menuentry 'Googlebook OS - known hardware profiles / QEMU' {
-'''+smbios_gate()+''' if [ "$allowed" = "1" ]; then
+'''+smbios_gate(cmd)+''' if [ "$allowed" = "1" ]; then
   gbrunch_boot
  else
   echo 'This default entry requires a known hardware profile (exact SMBIOS match) or QEMU.'

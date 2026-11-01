@@ -28,5 +28,5 @@ def run(name,args,timeout=120):
 s=run('installer-uefi-registration.log',['-kernel',str(B/'linux-kernel'),'-initrd',str(ram),'-append','rdinit=/init console=ttyS0,115200 loglevel=4'])
 assert 'INSTALLER_UEFI_APPEND_PASS' in s
 s=run('installer-internal-uefi-boot.log',[])
-assert 'INSTALLER_TARGET_BOOT_PASS:UEFI_GRUB_FRESH_GUIDS_COMPAT_V7' in s
+assert 'INSTALLER_TARGET_BOOT_PASS:UEFI_GRUB_FRESH_GUIDS_COMPAT_REVIEWED' in s
 (E/'installer-uefi-test.json').write_text(json.dumps(dict(passed=True,uefi_registration_preserves_prior_order=True,new_internal_esp_booted=True,fresh_guid_boot_argument_verified=True,compat_v7_sha_verified=True,scope='OVMF QEMU NVMe dummy source, GNU Linux probe, not Googlebook Android',physical_disks_accessed=False),indent=2)+'\n')

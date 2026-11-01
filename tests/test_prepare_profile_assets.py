@@ -50,7 +50,7 @@ class ProfileAssetTests(unittest.TestCase):
         for name,target,data in [('i915/new.bin','initrd',b'gpu'),('wifi.ucode','oem',b'wifi'),('intel/bt.sfi','oem',b'bt'),('LICENCE.t','license',b'lic')]:
             (cache/name).parent.mkdir(parents=True,exist_ok=True);(cache/name).write_bytes(data)
             entries.append({'name':name,'target':target,'sha256':sha(data),'bytes':len(data)})
-        self.saved=dict(ppa.PROFILES);ppa.PROFILES['test']={'board':'8B63','evidence':'synthetic','files':entries,'cmdline_append':'xe.enable_dpt=0'}
+        self.saved=dict(ppa.PROFILES);ppa.PROFILES['test']={'board':'8B63','evidence':'synthetic','files':entries,'cmdline_append':'xe.enable_psr=0 xe.enable_dpt=0 xe.enable_fbc=0 snd_intel_dspcfg.dsp_driver=3'}
         self.kit=kit;self.before={k:sha((kit/k).read_bytes()) for k in files}
     def tearDown(self):
         ppa.PROFILES.clear();ppa.PROFILES.update(self.saved);shutil.rmtree(self.t)
@@ -60,7 +60,7 @@ class ProfileAssetTests(unittest.TestCase):
         out=self.t/'out';self.run_tool(out)
         m=json.loads((out/'native-assets.json').read_text())
         self.assertEqual([v['name'] for v in m['firmware']],['i915/old.bin','i915/new.bin'])
-        self.assertEqual(m['cmdline'],'rdinit=/init drm.debug=0 xe.enable_dpt=0 androidboot.init_rc=/oem/init.gbrunch.rc')
+        self.assertEqual(m['cmdline'],'rdinit=/init drm.debug=0 xe.enable_psr=0 xe.enable_dpt=0 xe.enable_fbc=0 snd_intel_dspcfg.dsp_driver=3 androidboot.init_rc=/oem/init.gbrunch.rc')
         for n,h in m['files'].items():self.assertEqual(sha((out/n).read_bytes()),h,n)
         self.assertTrue((out/'licenses/LICENCE.t').is_file())
         for path,data in [('/firmware/wifi.ucode',b'wifi'),('/firmware/intel/bt.sfi',b'bt')]:
@@ -71,6 +71,8 @@ class ProfileAssetTests(unittest.TestCase):
         cfg=(out/'native-grub.cfg').read_text()
         self.assertIn('"$board_product" = "8B63"',cfg);self.assertIn('"$board_product" = "8C4F"',cfg)
         self.assertIn('linux /EFI/GBRUNCH/kernel CMDLINE',cfg);self.assertNotIn('restricted to the tested HP',cfg)
+        # The kit's assemble_native_android.py renders grub.cfg from the menu module beside it.
+        self.assertEqual((out/'googlebook_boot_menu.py').read_bytes(),(pathlib.Path(__file__).resolve().parents[1]/'tools/googlebook_boot_menu.py').read_bytes())
         if shutil.which('grub-script-check'):subprocess.run(['grub-script-check',str(out/'native-grub.cfg')],check=True)
         self.assertEqual({k:sha((self.kit/k).read_bytes()) for k in self.before},self.before,'source kit modified')
     def test_refuses_existing_output_and_bad_firmware(self):
@@ -94,7 +96,14 @@ class PinnedProfileTests(unittest.TestCase):
     def test_installer_accepts_pinned_profile_image(self):
         import dualboot_installer
         self.assertEqual(dualboot_installer.COMPAT_HASH,ppa.BASE_COMPAT)
+        # Exactly V7 plus each profile's current image: superseded development images are not accepted.
+        self.assertEqual(set(dualboot_installer.COMPAT_HASHES),
+                         {ppa.BASE_COMPAT}|{p['compat_sha256'] for p in ppa.PROFILES.values()})
+    def test_boot_menu_admits_profile_board_only_with_its_cmdline(self):
+        import googlebook_boot_menu as menu
         for name,p in ppa.PROFILES.items():
-            self.assertIn(p['compat_sha256'],dualboot_installer.COMPAT_HASHES,name)
+            req=[v for v in menu.PROFILES if v['board']==p['board']]
+            self.assertEqual(len(req),1,name)
+            self.assertLessEqual(set(req[0].get('requires',[])),set(p.get('cmdline_append','').split()),name)
 
 if __name__=='__main__':unittest.main()

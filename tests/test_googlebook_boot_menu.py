@@ -4,6 +4,9 @@ import pathlib,sys,tempfile,subprocess,unittest
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'tools'))
 from googlebook_boot_menu import render,command_line,smbios_gate,PROFILES
 CMD='rdinit=/init console=ttyS0,115200 loglevel=8 drm.debug=0 androidboot.boot_part_uuid=12345678-1234-1234-1234-123456789abc androidboot.init_rc=/oem/init.gbrunch.rc'
+# Same command line with the Dragonfly profile options (prepare_profile_assets cmdline_append).
+DF_CMD=CMD.replace(' androidboot.init_rc=',' xe.enable_psr=0 xe.enable_dpt=0 xe.enable_fbc=0 snd_intel_dspcfg.dsp_driver=3 androidboot.init_rc=')
+ALL_REQUIRED=CMD+' '+' '.join(r for v in PROFILES for r in v.get('requires',[]))
 class MenuTests(unittest.TestCase):
  def test_identical_command_and_default_gate(self):
   cfg=render(CMD)
@@ -11,8 +14,12 @@ class MenuTests(unittest.TestCase):
   self.assertEqual(cfg.count('linux /EFI/GBRUNCH/kernel '),1)
   self.assertIn('set default=0',cfg)
   self.assertIn('"$board_product" = "8C4F"',cfg)
-  self.assertIn('"$board_product" = "8B63"',cfg)
-  self.assertIn('"$system_product" = "HP Dragonfly 13.5 inch G4 Notebook PC"',cfg)
+  # A build without the Dragonfly kernel options must not admit it by default (black panel).
+  self.assertNotIn('"$board_product" = "8B63"',cfg)
+  df=render(DF_CMD)
+  self.assertEqual(command_line(df),DF_CMD)
+  self.assertIn('"$board_product" = "8B63"',df)
+  self.assertIn('"$system_product" = "HP Dragonfly 13.5 inch G4 Notebook PC"',df)
   experimental=cfg.split("menuentry 'Experimental boot",1)[1].split("menuentry 'UEFI",1)[0]
   self.assertIn('gbrunch_boot',experimental);self.assertNotIn('smbios',experimental)
  def test_amd_entry_is_opt_in_and_uses_separate_guarded_assets(self):
@@ -26,7 +33,7 @@ class MenuTests(unittest.TestCase):
   self.assertIn("androidboot.init_rc=/oem/init.gbrunch-amd.rc",cfg)
   self.assertIn("drm.debug=0x1e",cfg)
  def test_profile_gate_is_exact_and_nested(self):
-  gate=smbios_gate()
+  gate=smbios_gate(ALL_REQUIRED)
   # Every profile requires vendor, product and board together; no partial matches.
   for v in PROFILES:
    block=gate.split('"$system_product" = "%s"'%v['product'],1)[1].split(' fi\n',1)[0]
@@ -37,7 +44,7 @@ class MenuTests(unittest.TestCase):
  def test_unsafe_profile_value_rejected(self):
   PROFILES.append({'name':'x','status':'profile','vendor':'HP','product':'bad"; reboot','board':'0000'})
   try:
-   with self.assertRaises(ValueError):smbios_gate()
+   with self.assertRaises(ValueError):smbios_gate(CMD)
   finally:PROFILES.pop()
  def test_installer_uuid_remapping(self):
   cfg=render(CMD).replace('12345678-1234-1234-1234-123456789abc','87654321-4321-4321-4321-cba987654321')

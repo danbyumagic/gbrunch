@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Only runs in a preparation VM: erase selected USB and store local recovery view."""
 import pathlib,subprocess,hashlib,json,struct,fcntl,os,uuid,zlib,traceback
-from dualboot_installer import capacity,require,read_layout,COMPAT_HASH,SOURCE_GUIDS
+from dualboot_installer import capacity,require,read_layout,sha_range,COMPAT_HASHES,SOURCE_GUIDS
 M=1<<20;G=1<<30;USB=pathlib.Path('/dev/vda');SRC=pathlib.Path('/dev/vdc');W=pathlib.Path('/work')
 def run(*args):return subprocess.run([str(a) for a in args],check=True)
 def main():
@@ -14,6 +14,7 @@ def main():
  source_bytes=capacity(SRC);require(source_bytes==req['source_bytes'],'Source size changed')
  layout=read_layout(SRC);by={p['name']:p for p in layout['parts']}
  require(all(by.get(n,{}).get('guid')==g for n,g in SOURCE_GUIDS.items()),'Wrong source GPT')
+ compat=sha_range(str(SRC),by['GBRUNCH']['offset'],64*M);require(compat in COMPAT_HASHES,'Source must contain a reviewed compatibility image')
  # Target GPT has fixed installer extents and one payload filesystem. Backup is
  # always at actual physical capacity, even on different marketed 32 GB drives.
  specs=[('GBINSTALL_E',1*M,128*M,'c12a7328-f81f-11d2-ba4b-00a0c93ec93b'),('GBINSTALL',129*M,128*M,'ebd0a0a2-b9e5-4433-87c0-68b6b72699c7'),('GBPAYLOAD',257*M,26*G,'0fc63daf-8483-4772-8e79-3d69d8477de4')]
@@ -41,7 +42,7 @@ def main():
    done+=len(b)
    if done%(1<<30)<4*M:print('Copying payload %.1f / %.1f GB'%(done/1e9,source_bytes/1e9),flush=True)
   out.truncate(source_bytes);os.fsync(out.fileno())
- md=dict(format='GBRUNCH standalone source v1',source_bytes=source_bytes,source_sha256=h.hexdigest(),compat_sha256=COMPAT_HASH,official_recovery=req['official_recovery'],assembly_manifest=req['assembly_manifest'])
+ md=dict(format='GBRUNCH standalone source v1',source_bytes=source_bytes,source_sha256=h.hexdigest(),compat_sha256=compat,official_recovery=req['official_recovery'],assembly_manifest=req['assembly_manifest'])
  pathlib.Path('/payload/SOURCE-MANIFEST.json').write_text(json.dumps(md,indent=2)+'\n');os.sync();run('umount','/payload');run('e2fsck','-f','-n',payload)
  run('mount','-t','ext4','-o','ro,noload',payload,'/payload');verify=hashlib.sha256()
  with open('/payload/source.raw','rb') as f:

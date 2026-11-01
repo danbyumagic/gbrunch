@@ -99,7 +99,7 @@ static int csc_probe(struct platform_device *pdev)
 	struct acpi_device *adev = ACPI_COMPANION(&pdev->dev);
 	struct csc_ctx ctx = { 0 };
 	struct csc_priv *priv;
-	struct spi_controller *ctlr;
+	struct spi_controller *ctlr[MAX_AMPS];
 	LIST_HEAD(list);
 	int i, ret, irq;
 
@@ -112,18 +112,33 @@ static int csc_probe(struct platform_device *pdev)
 	if (!ctx.count)
 		return -ENOENT;
 
+	/*
+	 * Never defer. A deferred probe would run after snd-hda-scodec-cs35l41-spi is loaded, and
+	 * spi_new_device() would then bind each amplifier before it gets its ACPI node and upstream
+	 * name. So a missing controller fails loudly instead, and so does a missing GPIO IRQ, which
+	 * is non-fatal (amplifier errors then latch until reboot).
+	 */
+	for (i = 0; i < ctx.count; i++) {
+		ctlr[i] = csc_find_ctlr(ctx.res[i].ctlr_path);
+		if (!ctlr[i]) {
+			while (i--)
+				put_device(&ctlr[i]->dev);
+			return dev_err_probe(&pdev->dev, -ENODEV, "SPI controller %s not bound; speakers disabled\n",
+					     ctx.res[i].ctlr_path);
+		}
+	}
 	/* Like serial-multi-instantiate's IRQ_RESOURCE_AUTO: every amplifier shares GpioInt 0 (INTB). */
 	irq = acpi_dev_gpio_irq_get(adev, 0);
-	if (irq == -EPROBE_DEFER)
-		return irq;
 	if (irq < 0) {
-		dev_warn(&pdev->dev, "no amplifier interrupt: %d\n", irq);
+		dev_warn(&pdev->dev, "no amplifier interrupt (%d); amplifier errors need a reboot\n", irq);
 		irq = 0;
 	}
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
-	if (!priv)
-		return -ENOMEM;
+	if (!priv) {
+		ret = -ENOMEM;
+		goto err;
+	}
 
 	for (i = 0; i < ctx.count; i++) {
 		struct spi_board_info bi = {
@@ -135,16 +150,10 @@ static int csc_probe(struct platform_device *pdev)
 		struct spi_device *spi;
 		char name[64];
 
-		ctlr = csc_find_ctlr(ctx.res[i].ctlr_path);
-		if (!ctlr) {
-			ret = -EPROBE_DEFER;
-			goto err;
-		}
 		strscpy(bi.modalias, "cs35l41-hda", sizeof(bi.modalias));
-		spi = spi_new_device(ctlr, &bi);
-		snprintf(name, sizeof(name), "%s-%s-cs35l41-hda.%d", dev_name(&ctlr->dev),
+		spi = spi_new_device(ctlr[i], &bi);
+		snprintf(name, sizeof(name), "%s-%s-cs35l41-hda.%d", dev_name(&ctlr[i]->dev),
 			 dev_name(&adev->dev), i);
-		put_device(&ctlr->dev);
 		if (!spi) {
 			ret = -ENODEV;
 			goto err;
@@ -160,11 +169,15 @@ static int csc_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev, "%s: cs %u, %u Hz, mode 0x%x, irq %d\n", name, ctx.res[i].cs,
 			 ctx.res[i].speed, ctx.res[i].mode, irq);
 	}
+	for (i = 0; i < ctx.count; i++)
+		put_device(&ctlr[i]->dev);
 	platform_set_drvdata(pdev, priv);
 	return 0;
 err:
-	while (priv->count--)
+	while (priv && priv->count--)
 		device_unregister(&priv->spi[priv->count]->dev);
+	for (i = 0; i < ctx.count; i++)
+		put_device(&ctlr[i]->dev);
 	return dev_err_probe(&pdev->dev, ret, "CSC3551 SPI instantiation failed\n");
 }
 

@@ -32,27 +32,26 @@ static inline int gbrunch_gpiod_count(struct device *dev, const char *con_id)
 
 /*
  * Amplifier error interrupts without regmap-irq's domain: regmap_irq_get_virq() and
- * regmap_irq_get_domain() are not exported. Each upstream error handler is instead requested on
- * the shared ACPI GpioInt itself (IRQF_SHARED, as upstream), behind a thread that runs it only
- * when its own status bit is latched, acknowledges that bit (as regmap-irq does) and unmasks it at
- * request time. The upstream handlers then record irq_errors, and the driver's own error release
+ * regmap_irq_get_domain() are not exported. Each amplifier instead requests the shared ACPI GpioInt
+ * once (IRQF_SHARED, as upstream) with a thread that does regmap-irq's work: resume the amplifier,
+ * read each status register once, acknowledge the enabled bits that are set, and call the upstream
+ * handler of each. The upstream handlers then record irq_errors, and the driver's own error release
  * runs at the next pause, as on mainline. "data" is this header's own struct, never regmap's.
  */
 #include <linux/interrupt.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 
-struct gbrunch_irq_chip {
-	struct regmap *map;
-	const struct regmap_irq_chip *chip;
-};
+#define GBRUNCH_IRQ_REGS 4	/* CS35L41 IRQ1_STATUS1..4, register stride 4 */
 
-struct gbrunch_irq_src {
+struct gbrunch_irq_chip {
 	struct device *dev;
 	struct regmap *map;
-	unsigned int status, mask;
-	irq_handler_t handler;
+	const struct regmap_irq_chip *chip;
+	irq_handler_t *handlers;	/* by regmap IRQ index */
 	void *dev_id;
+	unsigned int enabled[GBRUNCH_IRQ_REGS];
+	bool requested;
 };
 
 static inline int gbrunch_devm_regmap_add_irq_chip(struct device *dev, struct regmap *map, int irq,
@@ -62,11 +61,15 @@ static inline int gbrunch_devm_regmap_add_irq_chip(struct device *dev, struct re
 {
 	struct gbrunch_irq_chip *c;
 
-	if (irq <= 0)
+	if (irq <= 0 || chip->num_regs > GBRUNCH_IRQ_REGS)
 		return -EINVAL;
 	c = devm_kzalloc(dev, sizeof(*c), GFP_KERNEL);
 	if (!c)
 		return -ENOMEM;
+	c->handlers = devm_kcalloc(dev, chip->num_irqs, sizeof(*c->handlers), GFP_KERNEL);
+	if (!c->handlers)
+		return -ENOMEM;
+	c->dev = dev;
 	c->map = map;
 	c->chip = chip;
 	*data = (struct regmap_irq_chip_data *)c;
@@ -78,17 +81,29 @@ static inline int gbrunch_devm_regmap_add_irq_chip(struct device *dev, struct re
 
 static irqreturn_t gbrunch_regmap_irq_thread(int irq, void *p)
 {
-	struct gbrunch_irq_src *s = p;
+	struct gbrunch_irq_chip *c = p;
+	const struct regmap_irq_chip *chip = c->chip;
+	unsigned int status[GBRUNCH_IRQ_REGS] = { 0 };
 	irqreturn_t ret = IRQ_NONE;
-	unsigned int v;
+	int r, i;
 
-	if (pm_runtime_get_if_active(s->dev) <= 0)
-		return IRQ_NONE;	/* a suspended amplifier has no latched error to report */
-	if (!regmap_read(s->map, s->status, &v) && (v & s->mask)) {
-		regmap_write(s->map, s->status, s->mask);
-		ret = s->handler(irq, s->dev_id);
+	if (pm_runtime_resume_and_get(c->dev) < 0)
+		return IRQ_NONE;
+	for (r = 0; r < chip->num_regs; r++) {
+		if (!c->enabled[r] || regmap_read(c->map, chip->status_base + 4 * r, &status[r]))
+			continue;
+		status[r] &= c->enabled[r];
+		if (status[r])
+			regmap_write(c->map, chip->ack_base + 4 * r, status[r]);
 	}
-	pm_runtime_put(s->dev);
+	for (i = 0; i < chip->num_irqs; i++) {
+		const struct regmap_irq *ri = &chip->irqs[i];
+
+		if (c->handlers[i] && (status[ri->reg_offset / 4] & ri->mask) &&
+		    c->handlers[i](irq, c->dev_id) == IRQ_HANDLED)
+			ret = IRQ_HANDLED;
+	}
+	pm_runtime_put(c->dev);
 	return ret;
 }
 
@@ -99,19 +114,23 @@ static inline int gbrunch_request_regmap_irq(struct regmap_irq_chip_data *data, 
 {
 	struct gbrunch_irq_chip *c = (struct gbrunch_irq_chip *)data;
 	const struct regmap_irq *ri = &c->chip->irqs[hwirq];
-	struct gbrunch_irq_src *s;
+	unsigned int r = ri->reg_offset / 4;
 	int ret;
 
-	s = devm_kzalloc(dev, sizeof(*s), GFP_KERNEL);
-	if (!s)
-		return -ENOMEM;
-	*s = (struct gbrunch_irq_src){ .dev = dev, .map = c->map, .handler = thread, .dev_id = dev_id,
-		.status = c->chip->status_base + ri->reg_offset, .mask = ri->mask };
-	regmap_write(s->map, s->status, s->mask);	/* drop a stale latch before unmasking */
-	ret = devm_request_threaded_irq(dev, irq, primary, gbrunch_regmap_irq_thread, flags, name, s);
-	if (!ret)
-		ret = regmap_update_bits(s->map, c->chip->mask_base + ri->reg_offset, s->mask, 0);
-	return ret;
+	if (hwirq < 0 || hwirq >= c->chip->num_irqs || r >= c->chip->num_regs || primary)
+		return -EINVAL;
+	if (!c->requested) {
+		ret = devm_request_threaded_irq(dev, irq, NULL, gbrunch_regmap_irq_thread, flags,
+						dev_name(dev), c);
+		if (ret)
+			return ret;
+		c->requested = true;
+	}
+	c->dev_id = dev_id;
+	c->handlers[hwirq] = thread;
+	c->enabled[r] |= ri->mask;
+	regmap_write(c->map, c->chip->ack_base + ri->reg_offset, ri->mask);	/* drop a stale latch */
+	return regmap_update_bits(c->map, c->chip->mask_base + ri->reg_offset, ri->mask, 0);
 }
 
 /* Firmware load vs. system suspend serialisation is not available to modules here. */

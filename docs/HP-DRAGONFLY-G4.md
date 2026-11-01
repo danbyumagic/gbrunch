@@ -34,7 +34,7 @@ occurred. Which option is strictly needed has not been isolated; DPT is the prim
 The source kit stays read-only. The tool downloads pinned linux-firmware files and checks their SHA-256 values.
 It needs `python3` and e2fsprogs (`debugfs`, `e2fsck`); the v0.3 toolbox has both.
 The e2fsprogs clock is fixed with `E2FSPROGS_FAKE_TIME`, so the derived `compat.ext4` is byte-reproducible
-(`a341d089...e542` from the V7 image with e2fsprogs 1.47.2). The tool refuses any other result.
+(the profile's pinned `compat_sha256`, from the V7 image with e2fsprogs 1.47.2). The tool refuses any other result.
 
 The v0.3 trial/installer only accept the V7 `compat.ext4` hash. This branch adds a reviewed hash list
 (`COMPAT_HASHES` in `tools/dualboot_installer.py`). The ISO's own copies are read-only, so the updated
@@ -49,14 +49,18 @@ work=$(findmnt -nr -S LABEL=GBWORK -o TARGET | head -n1)
 python3 $work/profile-tools/prepare_profile_assets.py \
   --assets /opt/gbrunch/assets --output $work/assets-dragonfly-g4 \
   --firmware-cache $work/profile-firmware-cache
-sudo python3 /opt/gbrunch/source/assemble_native_android.py --download \
+sudo python3 $work/assets-dragonfly-g4/assemble_native_android.py --download \
   --cache $work/recovery --assets $work/assets-dragonfly-g4 \
   --format qcow2 --output $work/recovery/source.qcow2
 sudo env GBRUNCH_SOURCE_OVERRIDE=$work/profile-tools python3 -u $work/profile-tools/trial.py
 ```
 
-The trial copies `grub.cfg` from the assembled source, so its default entry admits
-`HP / HP Dragonfly 13.5 inch G4 Notebook PC / 8B63`.
+Run the `assemble_native_android.py` in the derived asset directory, not the ISO's copy. It renders `grub.cfg`
+with the `googlebook_boot_menu.py` beside it, which the tool ships in the asset directory. The trial copies
+that `grub.cfg`, so its default entry admits `HP / HP Dragonfly 13.5 inch G4 Notebook PC / 8B63`. The menu admits
+a profile board only when the kernel command line carries the board's `requires` options (for the Dragonfly
+`xe.enable_psr/dpt/fbc=0` and `snd_intel_dspcfg.dsp_driver=3`). A plain V7 build, which lacks them, therefore
+refuses the Dragonfly in its default entry instead of booting to a black panel.
 
 Internal-disk installation through the ISO menu still uses the ISO's V7-only checks; it has not been adapted.
 
@@ -129,9 +133,12 @@ partitions from the image when recovering a disk that has been through such a lo
   2. The upstream cs35l41 HDA sources build unmodified apart from call-site renames into
      `gki-modules/compat/gbrunch_gki_compat.h`, which covers helpers the GKI does not export. `component_add` is a
      protected export, so the header uses `component_add_typed(...,1)`. The error IRQs also go through the header,
-     because `regmap_irq_get_virq` is trimmed. Each error source is requested on the shared line and checks and acks
-     its own status bit. Without the IRQ a latched error silenced the amps until reboot. With it, they recover once
-     DRAS closes the stream (pause for about 10 s), as on mainline.
+     because `regmap_irq_get_virq` is trimmed. Each amp requests the shared line once. Its thread does regmap-irq's
+     work: it resumes the amp, reads each status register once, acks the enabled bits and calls the upstream
+     handlers. Without the IRQ a latched error silenced the amps until reboot. With it, they recover once DRAS
+     closes the stream (pause for about 10 s), as on mainline. `gbrunch_csc3551_spi` never defers its probe: a
+     deferred probe would run after the cs35l41 SPI driver is loaded and bind the amps before they get their ACPI
+     node and name. A missing controller therefore fails with "speakers disabled".
   3. Boost type: the `_DSD` declares Internal Boost, but the board uses External Boost. With Internal Boost the
      amps crackle and then latch "Amp short error" at moderate volume. Ubuntu's kernel does the same, even with
      Speaker at -15 dB. `build_gki_modules.py` applies upstream "ALSA: hda: cs35l41: Fix boost type for HP Dragonfly

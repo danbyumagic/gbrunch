@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Build out-of-tree modules for the stock Ruby GKI kernel (6.18.21-android17-5-g3938c8d97142-ab16302624).
 
-Inputs (none are modified):
+Inputs:
   --work     directory from prepare_amd_build_inputs.py --clang-only, plus source/ = git checkout of
              ACK 3938c8d97142d5cf31543aa96f864a2cf832dda0 (git verifies the tree; the Gitiles
-             tarball is not byte-stable)
+             tarball is not byte-stable). The checkout must be clean: the only change allowed, and the
+             only one this tool makes, is the arch/x86/Kconfig line below. Build output goes to out/
+             and mods/ under --work; the other inputs are read only.
   --vmlinux  and --stock-modules  extracted from your own official recovery (for Module.symvers)
   --config   the recovery's embedded kernel config (extract-ikconfig)
 
@@ -22,8 +24,12 @@ import gki_symvers
 SOURCE_COMMIT='3938c8d97142d5cf31543aa96f864a2cf832dda0'
 RELEASE='6.18.21-android17-5-g3938c8d97142-ab16302624'
 KCFI_LINE=('\tdepends on CC_IS_CLANG && !RUST\n','\tdepends on CC_IS_CLANG && !RUST && n  # GBRUNCH: stock kernel was built with RUST=y, so arity is off\n')
-# Options that legitimately differ because no Rust toolchain is installed.
-RUST_ONLY=re.compile(r'RUST|BINDGEN|NOVA|ASHMEM')
+# Options that legitimately differ because no Rust toolchain is installed: any option with a RUST/RUSTC
+# name component (not substrings such as TRUSTED), BINDGEN_*, and the Rust-only drivers below.
+RUST_ONLY_NAMES={'DRM_NOVA','NOVA_CORE','ASHMEM'}
+def rust_only(line):
+    name=re.search(r'CONFIG_(\w+)',line).group(1);parts=set(name.split('_'))
+    return bool(parts&{'RUST','RUSTC'}) or name.startswith('BINDGEN_') or name in RUST_ONLY_NAMES
 # name -> (files copied from the ACK tree, or 'gbrunch:<path>' from this repository's gki-modules/, Kbuild text)
 MODULES={
  'ac':(['drivers/acpi/ac.c'],'obj-m := ac.o\n'),
@@ -76,14 +82,19 @@ def prepare(work,config,env):
     src,out=work/'source',work/'out'
     head=subprocess.check_output(['git','-C',str(src),'rev-parse','HEAD'],text=True).strip()
     if head!=SOURCE_COMMIT:raise SystemExit('source is not ACK '+SOURCE_COMMIT)
-    kc=src/'arch/x86/Kconfig';t=kc.read_text()
-    if KCFI_LINE[0] in t:kc.write_text(t.replace(KCFI_LINE[0],KCFI_LINE[1],1))
-    elif KCFI_LINE[1] not in t:raise SystemExit('unexpected CC_HAS_KCFI_ARITY definition')
+    git=lambda *a:subprocess.check_output(['git','-C',str(src),*a],text=True)
+    dirty=[l for l in git('status','--porcelain','--untracked-files=all').splitlines() if l[3:]!='arch/x86/Kconfig']
+    if dirty:raise SystemExit('source checkout has local changes: '+'; '.join(dirty[:10]))
+    kc=src/'arch/x86/Kconfig';t=kc.read_text();orig=git('show','HEAD:arch/x86/Kconfig')
+    if KCFI_LINE[0] not in orig:raise SystemExit('unexpected CC_HAS_KCFI_ARITY definition')
+    patched=orig.replace(KCFI_LINE[0],KCFI_LINE[1],1)
+    if t not in (orig,patched):raise SystemExit('arch/x86/Kconfig has changes other than the KCFI line')
+    if t!=patched:kc.write_text(patched)
     out.mkdir(exist_ok=True);shutil.copyfile(config,out/'.config')
     mk=['make','-C',src,'O='+str(out),'LLVM=1','ARCH=x86_64','KERNELRELEASE='+RELEASE]
     run(*mk,'olddefconfig',env=env,stdout=subprocess.DEVNULL)
     diff=config_lines(config)^config_lines(out/'.config')
-    bad=sorted(l for l in diff if not RUST_ONLY.search(l))
+    bad=sorted(l for l in diff if not rust_only(l))
     if bad:raise SystemExit('config differs from stock beyond Rust options: '+'; '.join(bad))
     run(*mk,'-j%d'%os.cpu_count(),'modules_prepare',env=env,stdout=subprocess.DEVNULL)
     (out/'protected_module_names_list').write_text('')  # Android modpost input; no modules here are protected
