@@ -75,14 +75,31 @@ python3 assets-dragonfly-g4/assemble_native_android.py --recovery-raw ruby-recov
 sudo dd if=googlebook-dragonfly.img of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
-The raw image keeps the recovery's 4 GiB **unformatted** userdata. Before the first boot, create a larger
-userdata partition in the free space after the image and format it exactly as the trial does
-(`mke2fs -t ext4 -b 4096 -I 512 -i 16384 -m 0 -O ...casefold...,quota,project,verity -E encoding=utf8-12.1 -M /data`).
-Rename the original partition (for example `userdata_small`) so only one partition is named `userdata`.
+The raw image keeps the recovery's 4 GiB **unformatted** userdata. Before the first boot, run
+`sudo bash tools/usb/grow-userdata.sh /dev/sdX`. It creates a larger userdata partition in the free space after
+the image and formats it exactly as the trial does. It also renames the original partition `userdata_small`, so
+only one partition is named `userdata`.
 Observed failures otherwise: unformatted userdata stops `/data` from mounting; 4 GiB fills up during
 first boot (ENOSPC), and the resulting NetworkStatsService NullPointerException restarts system_server repeatedly.
-Crash counters then persist in `metadata`/`misc`, and RescueParty later attempts FACTORY_RESET. Restore those two
-partitions from the image when recovering a disk that has been through such a loop.
+Crash counters then persist in `metadata`/`misc`, and RescueParty later attempts FACTORY_RESET. To recover a disk
+that has been through such a loop, run `sudo bash tools/usb/reset-firstboot.sh /dev/sdX googlebook-dragonfly.img`.
+It restores those two partitions from the image and reformats userdata.
+
+### Updating a USB disk in place
+
+These scripts in `tools/usb/` check that the target is a USB disk with no mounted partitions and the expected
+partition labels. They read each write back and compare it.
+
+| Script | Replaces |
+|---|---|
+| `apply-profile-update.sh /dev/sdX assets-dir` | GBRUNCH with the asset directory's `compat.ext4`. It also sets the profile's `cmdline_append` options in `EFI/GBRUNCH/grub.cfg` (backup `grub.cfg.before-profile-update`) |
+| `apply-vendor-update.sh /dev/sdX vendor.erofs` | GBVENDOR with a locally derived vendor image |
+| `grow-userdata.sh /dev/sdX` | userdata, see above (fresh raw image only) |
+| `reset-firstboot.sh /dev/sdX image.img` | metadata and misc from the image, and reformats userdata. GBLOG is kept |
+
+`profiles/hp-dragonfly-g4/collect-audio-power.sh` collects the read-only audio and power_supply inventory
+(ALSA controls, UCM, SOF/CS35L41 dmesg, AC/battery) from an Ubuntu live session. This profile's audio and charger
+settings came from that inventory.
 
 ## First boot checklist
 
