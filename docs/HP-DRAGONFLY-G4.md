@@ -25,7 +25,7 @@ occurred. Which option is strictly needed has not been isolated; DPT is the prim
 | Audio | ALC245 via SOF `8086:51ca`, 2 DMICs | alc269 has the 103c:8b63 quirk; SOF firmware added by the profile | HDMI output works; no 3.5 mm jack on this model |
 | Charger | ACPI `ACPI0003` (AC) | out-of-tree `ac.ko` (profile) | Works |
 | Speakers | 4x CS35L41 on SPI0 (`CSC3551`, full `_DSD`) | out-of-tree `gbrunch_csc3551_spi` + upstream snd-hda-scodec-cs35l41 (profile) | Works, full volume (external boost fix) |
-| Camera | IPU6EP `8086:a75d`, hi556 + OVTI00AB, INT3472 | camera HAL is IPU7-only | Not working: use a USB UVC camera |
+| Camera | IPU6EP `8086:a75d`, hi556 + OVTI00AB, INT3472 | Ruby's camera HAL is IPU7-only; the profile adds ipu-bridge and an upstream libcamera HAL (see below) | Works: preview, photo (1.3 MP), video. OVTI00AB (IR) unused |
 | USB camera | UVC (tested: Buffalo BSW20KM11) | Ruby's USB camera HAL needs `/dev/dma_heap/system` (`system_heap.ko`, loaded by the profile) | Works |
 | Hotkeys | intel_hid, hp_wmi | neither present | Some Fn keys missing |
 
@@ -110,6 +110,36 @@ settings came from that inventory.
 2. Connect the USB-C RTL8153 Ethernet adapter; it is the most likely working network path.
 3. Allow three minutes, then return to Linux and collect the GBLOG `Android-Logs` directory.
 4. Check `dmesg` for: `GuC firmware i915/adlp_guc_70.bin`, `loaded firmware version 89` for iwlwifi, and xe binding to `0000:00:02.0`.
+
+## Internal camera
+
+The hi556 user-facing camera works through upstream libcamera (simple pipeline, CPU software ISP) and its
+Android HAL. Physical tests on 2026-11-01 and 2026-11-02 covered preview, photos, video, colour and closing the
+camera. The pieces:
+
+1. Kernel. IPU6 needs `intel/ipu/ipu6ep_fw.bin` in `/oem/firmware` (GBVENDOR's `/firmware/intel/ipu` is empty).
+   Ruby's `intel-ipu6.ko` is built with `CONFIG_IPU_BRIDGE=n`, so it never builds the sensor graph from ACPI and
+   hi556 waits for its fwnode endpoint. The profile loads an out-of-tree upstream `ipu-bridge.ko` plus
+   `gbrunch_ipu6_bridge.ko` (`gki-modules/gbrunch-ipu6-bridge`) at post-fs-data. Exports that the stock GKI trims are
+   replaced in `gki-modules/compat/gbrunch_ipu_compat.h`. The IVSC lookup uses protected exports, and the Dragonfly
+   has no IVSC, so it is disabled. On boot, init rebinds `intel-ipu6`, waits for hi556 to bind, and restarts the
+   camera provider, because libcamera without udev does not see cameras that appear later.
+2. Camera stack. `camera/build.sh WORK` builds upstream libcamera `df8e348d` (v0.8.0) with
+   `camera/patches/0001-gbrunch-android.patch` for Android x86_64. Its output is passed to
+   `prepare_profile_assets.py --camera WORK/out`. The patch adds:
+   - Bionic and reproducibility fixes, and in-process unsigned IPA.
+   - NV12 output from the CPU software ISP.
+   - A hi556 sensor helper and a `hi556.yaml` tuning file. Its colour matrix is chosen by eye, not calibrated.
+   - HAL changes. All Android streams are produced from one ISP output, by scaling and JPEG encoding. The output is
+     capped at the 2x2 binned mode (1292x972). In one measurement each, the camera provider took about 1.5 cores
+     at full resolution and about 0.6 binned. The HAL reads strides from the minigbm handle and links the platform `libcamera_metadata`.
+3. Integration. `/oem/camera/lib64` is bind-mounted over `/vendor/lib64/libcamera`, which Ruby uses only for its
+   IPU7 plugins. `ro.hardware.camera=gbrunch` makes the legacy camera provider load
+   `/vendor/lib64/hw/camera.gbrunch.so`. That module is a small loader for the libcamera HAL, added to the locally
+   derived GBVENDOR (`vendor_files`). Later HAL changes then need only a GBRUNCH update.
+
+Limits: photos are 1.3 MP, and video at 1080p is upscaled from the binned mode. Autofocus is not supported (no lens
+driver is instantiated), and the colour is not calibrated.
 
 ## Known gaps and next work
 

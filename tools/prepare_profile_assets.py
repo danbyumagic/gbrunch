@@ -32,7 +32,7 @@ LOGGER_ANCHOR='''    capture "$n-wifi.txt" dumpsys -t 5 wifi
 LOGGER_CAPTURE='''    capture "$n-backlight-audio.txt" sh -c 'for d in /sys/class/backlight/*; do echo "== $d"; for f in type max_brightness brightness actual_brightness bl_power; do echo "$f=$(cat $d/$f)"; done; done; cat /proc/asound/cards /proc/asound/pcm; ls -l /dev/snd; dumpsys -t 5 media.audio_flinger | head -200; dumpsys -t 5 media.audio_policy | head -200'
     capture "$n-audio-logcat.txt" sh -c 'logcat -b all -d -v threadtime | grep -iE "audio|dras|APM_|soundcard|hal_?config|sofhdadsp|sof-hda|tinyalsa|mixer|alsa" | tail -c 1048576'
     capture "$n-audio-kernel.txt" sh -c 'dmesg | grep -iE "cs35l41|cs_dsp|sof-audio|snd_hda|alc269|ehdaudio|hdac|skl_hda" | tail -c 262144'
-    capture "$n-camera.txt" sh -c 'ls -lZ /dev/dma_heap /dev/video* /dev/media* 2>&1; for v in /sys/class/video4linux/*; do echo "$v $(cat $v/name)"; done; dumpsys -t 5 media.camera | head -150'
+    capture "$n-camera.txt" sh -c 'dmesg | grep -iE "ipu6|hi556|int3472|ov01|ovti|isys" | tail -60; ls -l /sys/bus/i2c/drivers/hi556 /sys/bus/platform/drivers/int3472-discrete /sys/bus/pci/drivers/intel-ipu6 2>&1; ls -lZ /dev/dma_heap /dev/video* /dev/media* /dev/v4l-subdev* 2>&1; for v in /sys/class/video4linux/*; do echo "$v $(cat $v/name)"; done; dumpsys -t 5 media.camera | head -150; p=$(pidof android.hardware.camera.provider@2.7-service-legacy-wrapper); [ -n "$p" ] && top -b -n 1 -H -p $p | head -30; logcat -b main,system -d -v threadtime -s gbcam:V libcamera:V gbrunch-camera:V camera_hal_adapter_AidlCameraProvider:V camera_hal_adapter_AidlCameraService:V CameraService:V CameraProviderManager:V | tail -c 393216'
     capture "$n-battery.txt" sh -c 'dumpsys -t 5 battery; for d in /sys/class/power_supply/*; do echo "== $d -> $(readlink -f $d)"; for f in type online status capacity; do echo "$f=$(cat $d/$f)"; done; done'
 '''
 PROFILE_DIR=pathlib.Path(__file__).resolve().parents[1]/'profiles'
@@ -44,7 +44,7 @@ INIT_ANCHOR='''    mount none /oem/weaver-manifest.xml /vendor/etc/vintf/manifes
 PROFILES={
  'hp-dragonfly-g4':{
   'board':'8B63',
-  'compat_sha256':'f1db7e68a3cb881ad9dd4d50791b0019dcd2f8d2b9089adf732852aa2f4298c2',
+  'compat_sha256':'f2478ea67705ea3f1f3dcbfd07e1dec0cf7f677ab9f126114d6bdec01a64a4f7',
   # Physical test 2026-10-31: with defaults the RPL-U eDP primary plane faulted
   # ("[PLANE:33:plane 1A] fault", Y-tiled XRGB via DPT) and the panel went black.
   # These xe display options removed every fault; setup and apps then worked.
@@ -69,6 +69,10 @@ PROFILES={
    {'path':'etc/audio_config.xml','src':'vendor/etc/audio_config.xml','template':'/etc/audio_policy_configuration.xml'},
    {'path':'etc/mixer_paths.xml','src':'vendor/etc/mixer_paths.xml','template':'/etc/audio_policy_configuration.xml'},
    {'path':'etc/volume_curves.xml','copy_from':'/etc/audio/sof-rt5682_alc5682ivs_tas2563/volume_curves.xml','template':'/etc/audio_policy_configuration.xml'},
+   # Camera HAL module for ro.hardware.camera=gbrunch: it loads the libcamera HAL from /vendor/lib64/libcamera,
+   # which GBRUNCH bind-mounts from /oem/camera/lib64, so HAL updates need only GBRUNCH.
+   {'path':'lib64/hw/camera.gbrunch.so','camera_src':'vendor/camera.gbrunch.so',
+    'sha256':'1b93099a7dab6a9cd4a583390930bfe8484219070c78d2a1d255610df502ae8e','template':'/lib64/hw/camera.libcamera_hal_base.so'},
   ],
   # Out-of-tree GKI modules from tools/build_gki_modules.py (--gki-modules DIR), loaded by init.
   # ac.ko: ACPI0003 AC adapter. Ruby's vendor modules ship battery.ko but not ac.ko, so Android
@@ -89,7 +93,38 @@ PROFILES={
    {'file':'gbrunch_csc3551_spi.ko','sha256':'78b2f6b1af927176ed74e404b16bc3d120638124060e9c826f0c93a1e17233d9','stage':'post-fs-data'},
    {'file':'snd-hda-scodec-cs35l41.ko','sha256':'d31627c356db31814b1f6d15c223df610165db8e45eef28259fcd14beb391ab7','stage':'post-fs-data'},
    {'file':'snd-hda-scodec-cs35l41-spi.ko','sha256':'d1c1c194fb96482ac067db41536319aa70f99688a477f20b4ff7ddfdb5513c71','stage':'post-fs-data'},
+   # Internal camera: upstream ipu-bridge, then the shim that builds the sensor graph for the stock IPU6
+   # driver (INT3472 has bound by post-fs-data). init rebinds intel-ipu6 on boot so it uses the graph.
+   {'file':'ipu-bridge.ko','sha256':'08d84420ae0d6fc05bd52ea2b467feb8a4eb2cc217fd66718b799f78a154b71f','stage':'post-fs-data'},
+   {'file':'gbrunch_ipu6_bridge.ko','sha256':'5b093f922d5a73ab7535ba0437f66b30b9ea81ed67b286ec3c84bad9eb7a882a','stage':'post-fs-data'},
   ],
+  # Internal camera: upstream libcamera (simple pipeline + software ISP + Android HAL), camera/build.sh
+  # (--camera WORK/out). lib64/ is bind-mounted over /vendor/lib64/libcamera, where GBVENDOR's camera.gbrunch.so
+  # loads libcamera-hal.so. bin/gbcam-probe is a manual capture test (logcat tag gbcam), not started by init.
+  'oem_camera':[
+   {'file':'lib64/libc++_shared.so','sha256':'39faf2d59346e65a18980f207794fab2f1faff8a8de3f087b8319a181fa16fbd'},
+   {'file':'lib64/libcamera-base.so','sha256':'0953d1e01293cdea274a3072f7afe9cfcc3f15c9a962b1c504b43c1799f2d66d'},
+   {'file':'lib64/libcamera.so','sha256':'c5c6232a1d378d821d04e5d2552f769c74b70d2b9ce11026772a013bd454137b'},
+   {'file':'lib64/libcamera-hal.so','sha256':'268f8a18ddee1c5c6248ceaf39bf67e69f03a4d09102b3cb9383a2c9aa4745f7'},
+   {'file':'lib64/libcamera/ipa/ipa_softisp.so','sha256':'c56d5d44d1210af6070f8c6d261a847c69f1b4b291b22e3cd0a83d4d45afb40e'},
+   {'file':'lib64/share/libcamera/ipa/softisp/uncalibrated.yaml','sha256':'0689579ca79036bbd31d104deafca70fb8b267c4c8f8492e07bd6f6e875ee1ac'},
+   {'file':'lib64/share/libcamera/ipa/softisp/hi556.yaml','sha256':'73eb25a6020fe76e2502c39a42dd166417b1b8c4c7c3c185ee30478f8e7846e0'},
+   {'file':'lib64/etc/libcamera/camera_hal.yaml','sha256':'a049647d62d3f92fa346a5058b55bb4a504af04cd28f337af323c2b6734de428'},
+   {'file':'bin/gbcam-probe','sha256':'601005b7c8e1411b2803261f19a44eb34588f0f0e639bc4c69e74423629c5147',
+    'label':'hal_camera_default_exec','mode':'0755'},
+  ],
+  # Text appended to init.gbrunch.rc.
+  # Ruby's intel-ipu6.ko has no ipu-bridge, so hi556 waits for its fwnode endpoint. After
+  # gbrunch_ipu6_bridge.ko (post-fs-data) has set the sensor graph, rebind the stock driver to use it.
+  # The camera provider (class hal) starts before the sensor is bound, and libcamera without udev does
+  # not see later cameras, so restart it once hi556 has probed after the rebind.
+  'init_append':'''
+on boot
+    write /sys/bus/pci/drivers/intel-ipu6/unbind 0000:00:05.0
+    write /sys/bus/pci/drivers/intel-ipu6/bind 0000:00:05.0
+    wait /sys/bus/i2c/drivers/hi556/i2c-INT3537:00 10
+    restart vendor.camera-provider-2-7-legacy-wrapper
+''',
   # Extra post-fs-data commands. /data/vendor/camera is created by Ruby's excluded init.common.rc;
   # the camera effects pipeline caches there.
   'init_post_fs_data':['mkdir /data/vendor/camera 0775 system camera'],
@@ -98,12 +133,19 @@ PROFILES={
                 ('/oem/audio/audio_config.xml','/vendor/etc/audio/sof-rt5682_alc5682ivs_tas2563/audio_config.xml'),
                 ('/oem/audio/mixer_paths.xml','/vendor/etc/audio/sof-rt5682_alc5682ivs_tas2563/mixer_paths.xml'),
                 # DRAS's fallback path (vendor_files below); bound so mixer changes need only GBRUNCH.
-                ('/oem/audio/mixer_paths.xml','/vendor/etc/mixer_paths.xml')],
+                ('/oem/audio/mixer_paths.xml','/vendor/etc/mixer_paths.xml'),
+                # Camera stack (directory bind; Ruby's own libcamera plugins there are unused).
+                ('/oem/camera/lib64','/vendor/lib64/libcamera')],
+  # Extra early-init commands, after the binds. Ruby sets this in the excluded init.fatcat.rc (to its own
+  # libcamera_hal_base); the legacy camera provider then loads /vendor/lib64/hw/camera.gbrunch.so.
+  'init_early':['setprop ro.hardware.camera gbrunch'],
   'evidence':'Ubuntu 7.0 live dmesg on the target: i915 adlp_dmc/adlp_guc_70/tgl_huc, iwlwifi so-a0-gf-a0-89 (8086:51f1 sub 8086:0094), btintel ibt-0040-0041 (8087:0033)',
   'files':[
    {'name':'i915/adlp_dmc.bin','target':'initrd','sha256':'3516de2e134ddcf3b319c75d2e437779fecbd58cbb77234bd6f297c544e92ccb','bytes':79088},
    {'name':'i915/adlp_guc_70.bin','target':'initrd','sha256':'451ee39d1dcd0c8169dfb6af7b585e4873e8bf5ca72e7625e4d79b9cc66c2f4c','bytes':341696},
    {'name':'i915/tgl_huc.bin','target':'initrd','sha256':'dbb1316bac13a76427ffa7827e52b5b9affe8a4cadd23dc22e2a54e35c53bdad','bytes':589888},
+   # Internal camera (IPU6EP 8086:a75d). Ruby's vendor has its own build, but GBVENDOR's /firmware/intel/ipu is empty.
+   {'name':'intel/ipu/ipu6ep_fw.bin','target':'oem','sha256':'60105304e5b66a5a85aac7541b31dc71740240c6dc1a144036b4b72ef2fb1ba1','bytes':466944},
    {'name':'iwlwifi-so-a0-gf-a0-89.ucode','target':'oem','sha256':'73171b7b1e0ded4687772cf7faac1e87d7ebbb193704361542f1eac73086f401','bytes':1735944},
    {'name':'iwlwifi-so-a0-gf-a0.pnvm','target':'oem','sha256':'99b9fb2c88e4e9dbd0559a768190affc78846897764f7c9af21d29fd65ff69b7','bytes':55208},
    {'name':'intel/ibt-0040-0041.sfi','target':'oem','sha256':'e4d46a2d9c0fe973c1a62a037c9a792df9b8aa2f5bf072eedd63b2c03ef3fdf9','bytes':719012},
@@ -231,7 +273,7 @@ def cpio_last(raw,want):
     if found is None:raise ValueError('initrd lacks '+want)
     return found
 
-def patch_tool_initrd(path,vendor_files,profile_dir):
+def patch_tool_initrd(path,vendor_files,profile_dir,camera_dir=None):
     # Append a second gzip'd cpio member; the kernel unpacks it after the original and its files win.
     raw=gzip.decompress(path.read_bytes())
     # The initrd holds several concatenated cpio archives and the kernel keeps the LAST copy of a path.
@@ -243,24 +285,28 @@ def patch_tool_initrd(path,vendor_files,profile_dir):
     extra=[]
     for e in vendor_files:
         d={'path':e['path'],'template':e['template']}
-        if 'src' in e:
-            data=(profile_dir/e['src']).read_bytes();d['data']=base64.b64encode(data).decode();d['sha256']=hashlib.sha256(data).hexdigest()
+        if 'src' in e or 'camera_src' in e:
+            if 'camera_src' in e and not camera_dir:raise ValueError('vendor file %s needs --camera'%e['path'])
+            data=(profile_dir/e['src'] if 'src' in e else camera_dir/e['camera_src']).read_bytes()
+            if 'camera_src' in e and hashlib.sha256(data).hexdigest()!=e['sha256']:raise ValueError('camera file hash mismatch: '+e['camera_src'])
+            d['data']=base64.b64encode(data).decode();d['sha256']=hashlib.sha256(data).hexdigest()
         else:d['copy_from']=e['copy_from']
         extra.append(d)
     member=cpio_newc([('payload/native_vendor_in_vm.py',0o100755,script.encode()),
                       ('payload/extra-vendor.json',0o100644,(json.dumps(extra,indent=1)+'\n').encode())])
     with path.open('ab') as f:f.write(gzip.compress(member,mtime=0))
 
-def add_oem_file(image,src,dest,label):
-    if not re.fullmatch(r'[a-z0-9_]+',label) or not re.fullmatch(r'/[A-Za-z0-9_./-]+',dest):raise ValueError('Unsafe oem file '+dest)
+def add_oem_file(image,src,dest,label,mode='0644'):
+    if mode not in ('0644','0755'):raise ValueError('Unsupported mode '+mode)
+    if not re.fullmatch(r'[a-z0-9_]+',label) or not re.fullmatch(r'/[A-Za-z0-9_.+/-]+',dest):raise ValueError('Unsafe oem file '+dest)
     if exists_in(image,dest):raise ValueError('Refusing to replace existing '+dest)
     parts=dest.split('/')[1:-1]
     for i in range(1,len(parts)+1):
         d='/'+'/'.join(parts[:i])
         if not exists_in(image,d):
-            debugfs(image,'mkdir '+d,'sif %s mode 040755'%d,'sif %s uid 0'%d,'sif %s gid 0'%d,
-                    'ea_set %s security.selinux u:object_r:%s:s0'%(d,label))
-    debugfs(image,'write %s %s'%(src,dest),'sif %s mode 0100644'%dest,'sif %s uid 0'%dest,'sif %s gid 0'%dest,
+            debugfs(image,'mkdir '+d,'sif %s mode 040755'%d,'sif %s uid 0'%d,'sif %s gid 0'%d,  # never an exec type
+                    'ea_set %s security.selinux u:object_r:%s:s0'%(d,'vendor_file' if label.endswith('_exec') else label))
+    debugfs(image,'write %s %s'%(src,dest),'sif %s mode 0100%s'%(dest,mode[1:]),'sif %s uid 0'%dest,'sif %s gid 0'%dest,
             'ea_set %s security.selinux u:object_r:%s:s0'%(dest,label))
 
 def replace_oem_text(image,path,old,new):
@@ -290,6 +336,7 @@ def main():
     p.add_argument('--output',required=True,type=pathlib.Path,help='NEW output assets directory')
     p.add_argument('--profile',default='hp-dragonfly-g4',choices=sorted(PROFILES))
     p.add_argument('--gki-modules',type=pathlib.Path,help='output directory of tools/build_gki_modules.py')
+    p.add_argument('--camera',type=pathlib.Path,help='camera stack directory (layout of /oem/camera)')
     p.add_argument('--firmware-cache',type=pathlib.Path,default=pathlib.Path('profile-firmware-cache'))
     a=p.parse_args();src=a.assets.resolve();out=a.output.absolute();profile=PROFILES[a.profile]
     if out.exists() or out.is_symlink():p.error('Output must not exist')
@@ -314,7 +361,7 @@ def main():
         for rel,label in profile.get('oem_files',[]):
             add_oem_file(tmp/'compat.ext4',PROFILE_DIR/a.profile/'oem'/rel,'/'+rel,label)
         if profile.get('vendor_files'):
-            patch_tool_initrd(tmp/'tool-initrd.gz',profile['vendor_files'],PROFILE_DIR/a.profile)
+            patch_tool_initrd(tmp/'tool-initrd.gz',profile['vendor_files'],PROFILE_DIR/a.profile,a.camera)
         mods=profile.get('oem_modules',[])
         if mods and not a.gki_modules:raise ValueError('profile needs --gki-modules (tools/build_gki_modules.py output)')
         for m in mods:
@@ -322,11 +369,22 @@ def main():
             ko=a.gki_modules/m['file']
             if sha(ko)!=m['sha256']:raise ValueError('GKI module hash mismatch: %s'%ko)
             add_oem_file(tmp/'compat.ext4',ko,'/modules/'+m['file'],'vendor_file')
+        cams=profile.get('oem_camera',[])
+        if cams and not a.camera:raise ValueError('profile needs --camera (camera stack build output)')
+        for c in cams:
+            f=a.camera/c['file']
+            if sha(f)!=c['sha256']:raise ValueError('camera file hash mismatch: %s'%f)
+            add_oem_file(tmp/'compat.ext4',f,'/camera/'+c['file'],c.get('label','vendor_file'),c.get('mode','0644'))
+        if profile.get('init_append'):
+            rc=tmp/'init-append.rc'
+            subprocess.run(['debugfs','-R','dump /init.gbrunch.rc %s'%rc,str(tmp/'compat.ext4')],check=True,capture_output=True,env=ENV)
+            text=rc.read_text();rc.unlink()
+            replace_oem_text(tmp/'compat.ext4','/init.gbrunch.rc',text[-200:],text[-200:]+profile['init_append'])
         def insmods(stage):
             return ''.join('    insmod %s\n'%(m.get('stock') or '/oem/modules/'+m['file']) for m in mods if m['stage']==stage)
         if profile.get('init_binds') or mods or profile.get('init_post_fs_data'):
             binds=''.join('    mount none %s %s bind\n'%(s,d) for s,d in profile.get('init_binds',[]))
-            binds+=insmods('early-init')
+            binds+=insmods('early-init')+''.join('    %s\n'%c for c in profile.get('init_early',[]))
             replace_oem_text(tmp/'compat.ext4','/init.gbrunch.rc',INIT_ANCHOR,INIT_ANCHOR+binds)
             late=insmods('post-fs-data')+''.join('    %s\n'%c for c in profile.get('init_post_fs_data',[]))
             if late:replace_oem_text(tmp/'compat.ext4','/init.gbrunch.rc','on post-fs-data\n','on post-fs-data\n'+late)
