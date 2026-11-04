@@ -86,6 +86,27 @@ Crash counters then persist in `metadata`/`misc`, and RescueParty later attempts
 that has been through such a loop, run `sudo bash tools/usb/reset-firstboot.sh /dev/sdX googlebook-dragonfly.img`.
 It restores those two partitions from the image and reformats userdata.
 
+### Release kit: build the image without building the assets
+
+`tools/usb/package-release.sh assets-dir OUTDIR` packs a Dragonfly asset directory into a redistributable
+`gbrunch-hp-dragonfly-g4-kit-<compat>.tar.gz`. The tarball holds the assets, the `tools/usb` scripts,
+`make-usb-kit.sh`, the kit READMEs from `tools/usb/kit/`, and the license notices (`tools/usb/kit/NOTICE.txt`,
+`camera/licenses/`). Before packing, the script checks every asset against `native-assets.json` and checks
+`compat.ext4` against the profile's pinned hash. A locally derived vendor, kernel or image therefore cannot
+enter the kit. The tarball is reproducible.
+
+A user without the build environment (GKI modules, camera stack) unpacks the kit and runs the following on an
+x86_64 Linux PC with about 50 GB free:
+
+```sh
+bash gbrunch-hp-dragonfly-g4-kit-*/make-usb-kit.sh [--recovery-zip recovery.zip] OUTDIR
+```
+
+The script verifies the kit's `SHA256SUMS` and downloads and checks the official recovery. It then runs the
+kit's `assemble_native_android.py --format raw`. It writes `OUTDIR/usb-kit/` with the image, its sha256, the
+`usb/` scripts and a README with the USB-disk and internal-NVMe steps. Copy that folder to a data USB stick
+(exFAT or ext4).
+
 ### Updating a USB disk in place
 
 These scripts in `tools/usb/` check that the target is a USB disk with no mounted partitions and the expected
