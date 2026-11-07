@@ -73,6 +73,11 @@ PROFILES={
    # which GBRUNCH bind-mounts from /oem/camera/lib64, so HAL updates need only GBRUNCH.
    {'path':'lib64/hw/camera.gbrunch.so','camera_src':'vendor/camera.gbrunch.so',
     'sha256':'1b93099a7dab6a9cd4a583390930bfe8484219070c78d2a1d255610df502ae8e','template':'/lib64/hw/camera.libcamera_hal_base.so'},
+   # Static RRO on framework-res: config_scrollbarSize 4dp -> 10dp, so View scrollbars (Settings, Files...)
+   # are visible and easy to grab with a mouse. Built reproducibly by overlays/scrollbar/build.sh
+   # (AOSP public test key); PackageManager picks up static overlays in /vendor/overlay by itself.
+   {'path':'overlay/GbrunchScrollbarOverlay.apk','src':'vendor/overlay/GbrunchScrollbarOverlay.apk',
+    'sha256':'a6c790663bdac1b22f4677cc074b0906e22dd51d9b2624b01c718b843926281e','template':'/overlay/framework-res__ruby__auto_generated_rro_vendor.apk'},
   ],
   # Out-of-tree GKI modules from tools/build_gki_modules.py (--gki-modules DIR), loaded by init.
   # ac.ko: ACPI0003 AC adapter. Ruby's vendor modules ship battery.ko but not ac.ko, so Android
@@ -288,7 +293,7 @@ def patch_tool_initrd(path,vendor_files,profile_dir,camera_dir=None):
         if 'src' in e or 'camera_src' in e:
             if 'camera_src' in e and not camera_dir:raise ValueError('vendor file %s needs --camera'%e['path'])
             data=(profile_dir/e['src'] if 'src' in e else camera_dir/e['camera_src']).read_bytes()
-            if 'camera_src' in e and hashlib.sha256(data).hexdigest()!=e['sha256']:raise ValueError('camera file hash mismatch: '+e['camera_src'])
+            if 'sha256' in e and hashlib.sha256(data).hexdigest()!=e['sha256']:raise ValueError('vendor file hash mismatch: '+e.get('src',e.get('camera_src')))
             d['data']=base64.b64encode(data).decode();d['sha256']=hashlib.sha256(data).hexdigest()
         else:d['copy_from']=e['copy_from']
         extra.append(d)

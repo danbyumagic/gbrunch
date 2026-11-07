@@ -162,6 +162,23 @@ camera. The pieces:
 Limits: photos are 1.3 MP, and video at 1080p is upscaled from the binned mode. Autofocus is not supported (no lens
 driver is instantiated), and the colour is not calibrated.
 
+## Wider scrollbars (framework overlay)
+
+Ruby's framework keeps `config_scrollbarSize` at the 4dp phone default, and its two framework-res overlays
+(system_ext and vendor) leave it alone, so View scrollbars in Settings, Files and similar apps are a thin fading line
+that is hard to see on a laptop. The profile adds a static runtime resource overlay, `overlay/GbrunchScrollbarOverlay.apk`,
+to the locally derived GBVENDOR (`vendor_files`, metadata copied from Ruby's own vendor RRO). It sets the dimension to
+10dp; PackageManager enables static overlays in `/vendor/overlay` by itself and framework-res declares no
+`<overlayable>` restrictions. The drag target stays `config_minScrollbarTouchTarget` (48dp) and the fade-out timing is a
+framework constant, so only the drawn width changes. Compose screens have no scrollbars either way.
+
+`overlays/scrollbar/build.sh WORK FRAMEWORK_RES_APK` rebuilds the APK: it fetches the pinned Android build-tools r36
+and the public AOSP test key (both sha256-checked), compiles with `aapt2 link --no-resource-removal` against the local
+recovery's `framework-res.apk` (only to resolve the manifest's `android:` attributes), and signs with v3. The output is
+byte-reproducible (sha256 pinned in `tools/prepare_profile_assets.py`). Chrome's web content is unaffected: its
+scrollbars are Chromium's own desktop-Android style (8 px thumb, 40 % when idle, enabled by default from Chrome 154 on
+devices with `android.hardware.type.pc`) and have no width setting.
+
 ## Known gaps and next work
 
 - Display density: `init.gbrunch.rc` sets `qemu.sf.lcd_density 160` for the 15.6" 1080p HP. The Dragonfly is 13.5" 1920x1280 (about 168 dpi); 160 is usable, though text may look small.

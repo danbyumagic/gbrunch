@@ -22,4 +22,13 @@ assets-*/compat.ext4 (the GBRUNCH partition, /oem) also contains:
                      texts: licenses/camera/README.txt. Corresponding source: camera/build.sh fetches
                      each pinned source by hash and applies camera/patches from the repository above.
 
+assets-*/tool-initrd.gz carries the profile files that the build VM adds to the locally derived
+GBVENDOR (payload/extra-vendor.json): the DRAS audio fallback XML files, the camera HAL loader
+(camera/ above) and
+  overlay/GbrunchScrollbarOverlay.apk
+                     Static runtime resource overlay on framework-res (config_scrollbarSize 10dp),
+                     MIT (repository LICENSE), built by overlays/scrollbar/build.sh and signed with the
+                     public AOSP platform test key (android.googlesource.com/platform/build,
+                     target/product/security/testkey).
+
 usb/, make-usb-kit.sh  GBRUNCH scripts, MIT (repository LICENSE).

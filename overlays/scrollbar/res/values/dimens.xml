@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- framework-res default: 4dp (frameworks/base/core/res/res/values/config.xml). The drag hit
+         area stays config_minScrollbarTouchTarget (48dp); only the drawn thumb/track get wider. -->
+    <dimen name="config_scrollbarSize">10dp</dimen>
+</resources>
