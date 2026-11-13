@@ -1,0 +1,34 @@
+GBRUNCH release kit: sources and licenses
+
+This kit contains no Google recovery bytes. make-usb-kit.sh downloads the official recovery from
+dl.google.com and derives the kernel, ramdisk and GBVENDOR (vendor and SELinux policy) locally.
+The resulting disk image contains Google's software: do not redistribute it.
+
+assets-*/            GBRUNCH standalone assets with the hardware profile applied by
+                     tools/prepare_profile_assets.py. Their components, sources and licenses are listed
+                     in assets-*/SOURCES-AND-LICENSES.txt and assets-*/licenses/, and each pinned file's
+                     sha256 in assets-*/native-assets.json. Firmware and its licence files come from the
+                     pinned linux-firmware commit and Debian firmware-sof-signed package named in
+                     assets-*/profile-*.json.
+
+assets-*/compat.ext4 (the GBRUNCH partition, /oem) also contains:
+  modules/*.ko       Kernel modules built by tools/build_gki_modules.py for the stock GKI kernel.
+                     License: GPL-2.0 (GPL-2.0.txt). Corresponding source: Android common kernel
+                     https://android.googlesource.com/kernel/common commit
+                     3938c8d97142d5cf31543aa96f864a2cf832dda0 (ac, cs35l41 and ipu-bridge drivers,
+                     unmodified), and gki-modules/ in https://github.com/osakanataro/gbrunch (the
+                     gbrunch_* modules and the compatibility header), with the build script.
+  camera/            libcamera camera stack built by camera/build.sh. Components, versions and license
+                     texts: licenses/camera/README.txt. Corresponding source: camera/build.sh fetches
+                     each pinned source by hash and applies camera/patches from the repository above.
+
+assets-*/tool-initrd.gz carries the profile files that the build VM adds to the locally derived
+GBVENDOR (payload/extra-vendor.json): the DRAS audio fallback XML files, the camera HAL loader
+(camera/ above) and
+  overlay/GbrunchScrollbarOverlay.apk
+                     Static runtime resource overlay on framework-res (config_scrollbarSize 10dp),
+                     MIT (repository LICENSE), built by overlays/scrollbar/build.sh and signed with the
+                     public AOSP platform test key (android.googlesource.com/platform/build,
+                     target/product/security/testkey).
+
+usb/, make-usb-kit.sh  GBRUNCH scripts, MIT (repository LICENSE).

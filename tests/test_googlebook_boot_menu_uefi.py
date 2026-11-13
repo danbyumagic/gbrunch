@@ -22,6 +22,8 @@ with tempfile.TemporaryDirectory(prefix='gbrunch-menu-qemu-') as temp:
    ('dell-default-refused',0,'Dell Inc.','Test Latitude','Test Board',False),
    ('dell-experimental-handoff',1,'Dell Inc.','Test Latitude','Test Board',True),
    ('hp-default-handoff',0,'HP','HP Envy x360 2-in-1 Laptop 15-fe1xxx','8C4F',True),
+   ('hp-dragonfly-g4-profile-handoff',0,'HP','HP Dragonfly 13.5 inch G4 Notebook PC','8B63',True),
+   ('hp-dragonfly-g4-wrong-board-refused',0,'HP','HP Dragonfly 13.5 inch G4 Notebook PC','8C4F',False),
    ('qemu-default-handoff',0,'QEMU','Standard PC','Test Board',True)]:
   # Test-only automatic menu selection and memdisk paths; production arguments
   # are separately checked by test_googlebook_boot_menu.py.

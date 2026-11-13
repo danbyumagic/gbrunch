@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GBRUNCH: static runtime resource overlay on framework-res (package "android").
+     Ruby's framework keeps config_scrollbarSize at the 4dp phone default, which is hard to see and to
+     grab with a mouse on a laptop. The overlay widens the scrollbars of View-based apps (Settings,
+     Files, ...). It overrides nothing that Ruby's own overlays touch. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.gbrunch.overlay.scrollbar"
+    android:versionCode="1"
+    android:versionName="1.0">
+    <application android:hasCode="false" />
+    <overlay android:targetPackage="android"
+        android:priority="1"
+        android:isStatic="true" />
+</manifest>

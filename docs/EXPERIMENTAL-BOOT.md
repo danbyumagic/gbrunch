@@ -2,7 +2,7 @@
 
 The v0.3 ISO and new source builds have two Android entries:
 
-1. **Googlebook OS - tested HP Envy / QEMU**: default; retains the SMBIOS model/board gate.
+1. **Googlebook OS - known hardware profiles / QEMU**: default; retains the exact SMBIOS vendor/product/board gate. Admitted boards are listed in `PROFILES` in `tools/googlebook_boot_menu.py` (tested HP Envy x360 15-fe1xxx / 8C4F; inventory-matched, not yet booted HP Dragonfly G4 / 8B63). Older builds label this entry **Googlebook OS - tested HP Envy / QEMU**.
 2. **Experimental boot - untested hardware (verbose logs)**: explicitly attempts the same Intel-oriented build on another UEFI laptop.
 
 The second entry changes only hardware admission. It uses the exact same kernel, matching modules, ramdisk, boot UUID and existing verbose logging settings. It does not select new drivers, bypass installer identity/partition checks or establish support for Dell/other machines. Early UEFI/kernel failures may occur before persistent Android logging starts.

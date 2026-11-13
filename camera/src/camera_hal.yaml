@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: CC0-1.0
+# GBRUNCH libcamera Android HAL configuration (HP Dragonfly G4: hi556 user-facing camera).
+# The key is the libcamera camera ID, the ACPI path of the sensor link.
+cameras:
+  '\_SB_.PC00.LNK0':
+    location: front
+    rotation: 0

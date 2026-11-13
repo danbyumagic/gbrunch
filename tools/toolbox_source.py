@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verified local recovery QCOW2, exposed as a read-only NBD installer source."""
 import pathlib,subprocess,json,hashlib,os,stat,time,contextlib
-from dualboot_installer import require,identity,capacity,read_layout,COMPAT_HASH,EXPECTED,SOURCE_GUIDS,sha_range
+from dualboot_installer import require,identity,capacity,read_layout,COMPAT_HASHES,EXPECTED,SOURCE_GUIDS,sha_range
 from assemble_external_lab import RAW_HASH
 
 RECORD=pathlib.Path('/run/gbrunch/local-source-verified.json')
@@ -71,7 +71,7 @@ def local_source():
   identity(path);layout=read_layout(path);by={p['name']:p for p in layout['parts']}
   require(set(by)==EXPECTED,'Unexpected local recovery partition profile')
   require(all(by[n]['guid']==g for n,g in SOURCE_GUIDS.items()),'Wrong compatibility partition GUIDs')
-  require(sha_range(path,by['GBRUNCH']['offset'],by['GBRUNCH']['bytes'])==COMPAT_HASH,'Wrong V7 compatibility bytes')
+  require(sha_range(path,by['GBRUNCH']['offset'],by['GBRUNCH']['bytes']) in COMPAT_HASHES,'Wrong compatibility bytes')
   yield path,w,parent
  finally:
   RECORD.unlink(missing_ok=True)

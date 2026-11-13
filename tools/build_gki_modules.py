@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""Build out-of-tree modules for the stock Ruby GKI kernel (6.18.21-android17-5-g3938c8d97142-ab16302624).
+
+Inputs:
+  --work     directory from prepare_amd_build_inputs.py --clang-only, plus source/ = git checkout of
+             ACK 3938c8d97142d5cf31543aa96f864a2cf832dda0 (git verifies the tree; the Gitiles
+             tarball is not byte-stable). The checkout must be clean: the only change allowed, and the
+             only one this tool makes, is the arch/x86/Kconfig line below. Build output goes to out/
+             and mods/ under --work; the other inputs are read only.
+  --vmlinux  and --stock-modules  extracted from your own official recovery (for Module.symvers)
+  --config   the recovery's embedded kernel config (extract-ikconfig)
+
+Steps: apply the stock config. RUST is unavailable here, and the stock kernel was built with
+RUST=y, so a one-line Kconfig change keeps CC_HAS_KCFI_ARITY/FINEIBT_BHI off as in the stock
+kernel. Then fail unless the only config differences are Rust-only options. modules_prepare with
+the stock KERNELRELEASE. Module.symvers comes from stock exports and the CRCs that stock modules
+import (gki_symvers.py). Each module is built, stripped of debug info and build-id (byte-reproducible
+across build paths), and every import is checked against that table.
+"""
+import argparse,hashlib,json,os,pathlib,re,shutil,subprocess,sys
+sys.path.insert(0,str(pathlib.Path(__file__).resolve().parent))
+import gki_symvers
+
+SOURCE_COMMIT='3938c8d97142d5cf31543aa96f864a2cf832dda0'
+RELEASE='6.18.21-android17-5-g3938c8d97142-ab16302624'
+KCFI_LINE=('\tdepends on CC_IS_CLANG && !RUST\n','\tdepends on CC_IS_CLANG && !RUST && n  # GBRUNCH: stock kernel was built with RUST=y, so arity is off\n')
+# Options that legitimately differ because no Rust toolchain is installed: any option with a RUST/RUSTC
+# name component (not substrings such as TRUSTED), BINDGEN_*, and the Rust-only drivers below.
+RUST_ONLY_NAMES={'DRM_NOVA','NOVA_CORE','ASHMEM'}
+def rust_only(line):
+    name=re.search(r'CONFIG_(\w+)',line).group(1);parts=set(name.split('_'))
+    return bool(parts&{'RUST','RUSTC'}) or name.startswith('BINDGEN_') or name in RUST_ONLY_NAMES
+# name -> (files copied from the ACK tree, or 'gbrunch:<path>' from this repository's gki-modules/, Kbuild text)
+MODULES={
+ 'ac':(['drivers/acpi/ac.c'],'obj-m := ac.o\n'),
+ # Must be loaded before snd-hda-scodec-cs35l41-spi: it creates and names the amplifier SPI devices.
+ 'gbrunch-csc3551-spi':(['gbrunch:gbrunch-csc3551-spi/gbrunch_csc3551_spi.c'],'obj-m := gbrunch_csc3551_spi.o\n'),
+ # Unmodified upstream CS35L41 HDA side codec (Kconfig n in the stock kernel). Runtime deps are
+ # stock vendor modules: cs_dsp, snd-soc-cs35l41-lib, snd-soc-cs-amp-lib, snd-hda-codec.
+ 'cs35l41-hda':(['sound/hda/codecs/side-codecs/cs35l41_hda.c','sound/hda/codecs/side-codecs/cs35l41_hda_property.c',
+                 'sound/hda/codecs/side-codecs/cs35l41_hda_spi.c','sound/soc/codecs/cs35l41-lib.c',
+                 'gbrunch:compat/gbrunch_gki_compat.h'],
+                'ccflags-y += -I$(srctree)/sound/hda/common -I$(srctree)/sound/hda/codecs/side-codecs\n'
+                'obj-m += snd-soc-cs35l41-lib.o snd-hda-scodec-cs35l41.o snd-hda-scodec-cs35l41-spi.o\n'
+                'snd-soc-cs35l41-lib-y := cs35l41-lib.o\n'
+                'snd-hda-scodec-cs35l41-y := cs35l41_hda.o cs35l41_hda_property.o\n'
+                'snd-hda-scodec-cs35l41-spi-y := cs35l41_hda_spi.o\n'),
+ # Unmodified upstream ipu-bridge (CONFIG_IPU_BRIDGE=n in the stock kernel and in Ruby's intel-ipu6.ko)
+ # and the shim that runs it on the IPU6 PCI device. Load ipu-bridge first.
+ 'ipu6-bridge':(['drivers/media/pci/intel/ipu-bridge.c','gbrunch:gbrunch-ipu6-bridge/gbrunch_ipu6_bridge.c',
+                 'gbrunch:compat/gbrunch_ipu_compat.h'],
+                'ccflags-y += -DCONFIG_IPU_BRIDGE_MODULE=1\n'  # the bridge API in media/ipu-bridge.h
+                'obj-m += ipu-bridge.o gbrunch_ipu6_bridge.o\n'),
+}
+# Call-site renames into gbrunch_gki_compat.h for helpers the stock GKI does not export.
+COMPAT_CALLS=['gpiod_get_index','gpiod_count','regmap_irq_get_virq','devm_regmap_add_irq_chip','lock_system_sleep',
+              'unlock_system_sleep','component_add']
+# Exact source edits (file, old, new); each must match once. The error-IRQ request needs the
+# regmap IRQ index, which the upstream call does not pass (see gbrunch_gki_compat.h).
+SOURCE_PATCHES=[('cs35l41_hda.c','ret = devm_request_threaded_irq(cs35l41->dev, irq, NULL,',
+                 'ret = gbrunch_request_regmap_irq(cs35l41->irq_data, cs35l41_irqs[i].irq, cs35l41->dev, irq, NULL,'),
+ # Upstream "ALSA: hda: cs35l41: Fix boost type for HP Dragonfly 13.5 inch G4" (Leonard Lausen,
+ # 2026-03, kernel bugzilla 219520; not in ACK 3938c8d97142). Its _DSD declares Internal Boost,
+ # but the board uses External Boost; with Internal Boost all four amps crackle and then latch
+ # "Amp short error" at moderate volume (reproduced here and on Ubuntu, 2026-11-01).
+ ('cs35l41_hda_property.c',
+  '\t{ "103C8A6E", 4, EXTERNAL, { CS35L41_LEFT, CS35L41_LEFT, CS35L41_RIGHT, CS35L41_RIGHT }, 0, -1, -1, 0, 0, 0 },\n',
+  '\t{ "103C8A6E", 4, EXTERNAL, { CS35L41_LEFT, CS35L41_LEFT, CS35L41_RIGHT, CS35L41_RIGHT }, 0, -1, -1, 0, 0, 0 },\n'
+  '/*\n * Device 103C8B63 has _DSD with valid reset-gpios and cs-gpios, however the\n'
+  ' * boost type is incorrectly set to Internal. Override to External Boost.\n */\n'
+  '\t{ "103C8B63", 4, EXTERNAL, { CS35L41_RIGHT, CS35L41_LEFT, CS35L41_RIGHT, CS35L41_LEFT }, -1, -1, -1, 0, 0, 0 },\n'),
+ ('cs35l41_hda_property.c','\t{ "CSC3551", "103C8A6E", generic_dsd_config },\n',
+  '\t{ "CSC3551", "103C8A6E", generic_dsd_config },\n\t{ "CSC3551", "103C8B63", generic_dsd_config },\n')]
+IPU_COMPAT_CALLS=['acpi_get_physical_device_location','i2c_acpi_new_device_by_fwnode','i2c_find_device_by_fwnode',
+                  'strchrnul','software_node_fwnode','set_secondary_fwnode','software_node_register_node_group',
+                  'software_node_unregister_node_group']
+# Copied source -> (compat header, renamed calls).
+# ipu-bridge: the IVSC lookup needs platform_bus_type and device_find_child, which are protected exports
+# (signed modules only). The Dragonfly G4 has no IVSC (Ubuntu ACPI/dmesg inventory), so report none.
+SOURCE_PATCHES.append(('ipu-bridge.c','\tdev = bus_find_device(&platform_bus_type, NULL, adev,\n\t\t\t      ipu_bridge_match_ivsc_dev);\n',
+                       '\tdev = NULL;  /* GBRUNCH: IVSC lookup needs protected exports; no IVSC on supported boards */\n'
+                       '\t(void)ipu_bridge_match_ivsc_dev;\n'))
+COMPAT_FILES={'cs35l41_hda.c':('gbrunch_gki_compat.h',COMPAT_CALLS),'cs35l41_hda_property.c':('gbrunch_gki_compat.h',COMPAT_CALLS),
+              'ipu-bridge.c':('gbrunch_ipu_compat.h',IPU_COMPAT_CALLS)}
+# Rebuilt replacements for stock vendor modules. Ruby's vendor modules come from a different
+# tree (vermagic ...-ga3bbc4527b7b), and their cs35l41-lib export CRCs differ from this build. So the
+# stock copy must NOT be loaded together with ours. Imports satisfied inside this build are checked
+# against this build's own Module.symvers, and everything else against the stock table.
+REBUILT_STOCK={'snd-soc-cs35l41-lib.ko'}
+LOCAL=pathlib.Path(__file__).resolve().parents[1]/'gki-modules'
+
+def run(*a,**k):return subprocess.run([str(x) for x in a],check=True,**k)
+
+def config_lines(path):
+    return {l.strip() for l in path.read_text().splitlines() if l.startswith(('CONFIG_','# CONFIG_'))}
+
+def prepare(work,config,env):
+    src,out=work/'source',work/'out'
+    head=subprocess.check_output(['git','-C',str(src),'rev-parse','HEAD'],text=True).strip()
+    if head!=SOURCE_COMMIT:raise SystemExit('source is not ACK '+SOURCE_COMMIT)
+    git=lambda *a:subprocess.check_output(['git','-C',str(src),*a],text=True)
+    dirty=[l for l in git('status','--porcelain','--untracked-files=all').splitlines() if l[3:]!='arch/x86/Kconfig']
+    if dirty:raise SystemExit('source checkout has local changes: '+'; '.join(dirty[:10]))
+    kc=src/'arch/x86/Kconfig';t=kc.read_text();orig=git('show','HEAD:arch/x86/Kconfig')
+    if KCFI_LINE[0] not in orig:raise SystemExit('unexpected CC_HAS_KCFI_ARITY definition')
+    patched=orig.replace(KCFI_LINE[0],KCFI_LINE[1],1)
+    if t not in (orig,patched):raise SystemExit('arch/x86/Kconfig has changes other than the KCFI line')
+    if t!=patched:kc.write_text(patched)
+    out.mkdir(exist_ok=True);shutil.copyfile(config,out/'.config')
+    mk=['make','-C',src,'O='+str(out),'LLVM=1','ARCH=x86_64','KERNELRELEASE='+RELEASE]
+    run(*mk,'olddefconfig',env=env,stdout=subprocess.DEVNULL)
+    diff=config_lines(config)^config_lines(out/'.config')
+    bad=sorted(l for l in diff if not rust_only(l))
+    if bad:raise SystemExit('config differs from stock beyond Rust options: '+'; '.join(bad))
+    run(*mk,'-j%d'%os.cpu_count(),'modules_prepare',env=env,stdout=subprocess.DEVNULL)
+    (out/'protected_module_names_list').write_text('')  # Android modpost input; no modules here are protected
+    return out
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__,formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument('--work',required=True,type=pathlib.Path)
+    p.add_argument('--vmlinux',required=True,type=pathlib.Path)
+    p.add_argument('--stock-modules',nargs='+',required=True,type=pathlib.Path)
+    p.add_argument('--config',required=True,type=pathlib.Path)
+    p.add_argument('--output',required=True,type=pathlib.Path)
+    p.add_argument('--modules',nargs='+',default=sorted(MODULES),choices=sorted(MODULES))
+    a=p.parse_args();work=a.work.resolve();out_dir=a.output.resolve()
+    clang=work/'clang-r584948c/bin'
+    env=dict(os.environ,PATH=str(clang)+os.pathsep+os.environ['PATH'])
+    want=[l for l in a.config.read_text().splitlines() if l.startswith('CONFIG_CC_VERSION_TEXT=')][0].split('=',1)[1].strip('"')
+    have=subprocess.check_output([str(clang/'clang'),'--version'],text=True).splitlines()[0]
+    if have!=want:raise SystemExit('compiler mismatch: %r != %r'%(have,want))
+    out=prepare(work,a.config,env)
+    symvers=out/'Module.symvers'
+    sys.argv=['gki_symvers','--vmlinux',str(a.vmlinux),'--modules',*map(str,a.stock_modules),'--out',str(symvers)]
+    gki_symvers.main()
+    table={l.split('\t')[1]:int(l.split('\t')[0],16) for l in symvers.read_text().splitlines()}
+    protected=gki_symvers.vmlinux_protected(a.vmlinux)  # unsigned modules get -EACCES on these
+    out_dir.mkdir(parents=True,exist_ok=True);manifest={'release':RELEASE,'source_commit':SOURCE_COMMIT,'compiler':have,'modules':[]}
+    for name in a.modules:
+        files,kbuild=MODULES[name];mdir=work/'mods'/name
+        shutil.rmtree(mdir,ignore_errors=True);mdir.mkdir(parents=True)
+        for f in files:shutil.copyfile(LOCAL/f[8:] if f.startswith('gbrunch:') else work/'source'/f,mdir/pathlib.Path(f).name)
+        for f in mdir.glob('*.c'):
+            if f.name in COMPAT_FILES:
+                t=f.read_text()
+                for fn,o,n in SOURCE_PATCHES:
+                    if fn==f.name:
+                        if t.count(o)!=1:raise SystemExit('%s: patch anchor not unique: %s'%(fn,o))
+                        t=t.replace(o,n)
+                header,calls=COMPAT_FILES[f.name]
+                for c in calls:t=re.sub(r'(?<![\w.>])%s\('%c,'gbrunch_%s('%c,t)
+                last=[m.end() for m in re.finditer(r'^#include [<"].*[>"]\n',t,re.M)][-1]
+                f.write_text(t[:last]+'#include "%s"\n'%header+t[last:])
+        (mdir/'Kbuild').write_text(kbuild)
+        log=run('make','-C',out,'LLVM=1','ARCH=x86_64','M='+str(mdir),'KERNELRELEASE='+RELEASE,'modules',env=env,capture_output=True,text=True)
+        warn=[l for l in (log.stdout+log.stderr).splitlines() if 'WARNING' in l or 'ERROR' in l]
+        if warn:raise SystemExit('%s: modpost warnings:\n%s'%(name,'\n'.join(warn)))
+        for ko in sorted(mdir.glob('*.ko')):
+            dest=out_dir/ko.name
+            run(clang/'llvm-objcopy','--strip-debug','--remove-section=.note.gnu.build-id',ko,dest)
+            imports=dict(gki_symvers.module_imports(dest))
+            built={l.split('\t')[1]:int(l.split('\t')[0],16) for l in (mdir/'Module.symvers').read_text().splitlines()}
+            bad=[n for n,c in imports.items() if (built[n] if n in built else table.get(n))!=c]
+            if ko.name in REBUILT_STOCK:
+                manifest.setdefault('replaces_stock',{})[ko.name]={'exports':len(built),
+                    'crc_differs_from_stock':sorted(n for n,c in built.items() if n in table and table[n]!=c)}
+            if bad:raise SystemExit('%s: import CRC not in stock table: %s'%(ko.name,bad))
+            prot=sorted(n for n in imports if n in protected)
+            if prot:raise SystemExit('%s: imports protected symbols (signed GKI modules only): %s'%(ko.name,prot))
+            manifest['modules'].append({'file':ko.name,'sources':files,'imports':len(imports),
+                                        'sha256':hashlib.sha256(dest.read_bytes()).hexdigest(),'bytes':dest.stat().st_size})
+    (out_dir/'manifest.json').write_text(json.dumps(manifest,indent=1)+'\n')
+    print(json.dumps(manifest['modules'],indent=1))
+
+if __name__=='__main__':main()

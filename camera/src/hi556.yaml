@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: CC0-1.0
+# GBRUNCH software ISP tuning for the Hynix HI-556 (HP Dragonfly G4 user-facing camera).
+# Not calibrated: the CCM is a moderate generic sensor-to-sRGB matrix (rows sum to 1, so greys stay
+# neutral) chosen by eye, replacing the identity that leaves colours washed out.
+%YAML 1.1
+---
+version: 1
+algorithms:
+  - BlackLevel:
+  - Awb:
+  - Ccm:
+      ccms:
+        - ct: 6500
+          ccm: [ 1.60, -0.45, -0.15,
+                -0.30,  1.55, -0.25,
+                -0.05, -0.55,  1.60 ]
+  - Adjust:
+  - Agc:
+...

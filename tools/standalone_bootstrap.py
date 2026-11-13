@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify locally built USB payload, mount read-only, expose only a read-only loop."""
 import pathlib,json,hashlib,subprocess,os,stat
-from dualboot_installer import identity,require,COMPAT_HASH
+from dualboot_installer import identity,require,COMPAT_HASHES
 M=pathlib.Path('/payload/SOURCE-MANIFEST.json')
 def main():
  p=subprocess.check_output(['blkid','-L','GBPAYLOAD'],text=True).strip();require(bool(p),'No standalone payload')
@@ -11,7 +11,7 @@ def main():
  require(identity('/dev/'+node.resolve().parent.name)['usb'],'Standalone payload must be on USB')
  pathlib.Path('/payload').mkdir(exist_ok=True)
  subprocess.run(['mount','-t','ext4','-o','ro,noload,nodev,nosuid,noexec',p,'/payload'],check=True)
- md=json.loads(M.read_text());require(md['format']=='GBRUNCH standalone source v1' and md['compat_sha256']==COMPAT_HASH,'Wrong payload profile')
+ md=json.loads(M.read_text());require(md['format']=='GBRUNCH standalone source v1' and md['compat_sha256'] in COMPAT_HASHES,'Wrong payload profile')
  source=pathlib.Path('/payload/source.raw');ss=source.lstat();require(stat.S_ISREG(ss.st_mode) and ss.st_size==md['source_bytes'],'Source size/type mismatch')
  print('Verifying Googlebook payload before enabling installation. This can take several minutes.',flush=True)
  h=hashlib.sha256();done=0;nextprogress=0
